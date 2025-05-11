@@ -30,6 +30,7 @@ const formSchema = z.object({
   end: z.string().min(1, "End date is required"),
   location: z.string().optional(),
   color: z.string().default("#3b82f6"),
+  timezone: z.string().optional(),
 })
 
 interface EventDialogProps {
@@ -83,6 +84,14 @@ export function EventDialog({ open, onOpenChange, event, onEventUpdated, onEvent
     setConfirmDelete(false)
   }, [event, form, open])
 
+  useEffect(() => {
+    // Get the user's timezone
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+
+    // Set the timezone in the form
+    form.setValue("timezone", userTimezone)
+  }, [form])
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!session?.user?.id) {
       toast({
@@ -103,6 +112,7 @@ export function EventDialog({ open, onOpenChange, event, onEventUpdated, onEvent
         location: values.location,
         color: values.color,
         userId: session.user.id,
+        timezone: values.timezone || "UTC", // Include the timezone
       }
 
       if (event) {
