@@ -41,7 +41,7 @@ Before running the application, you'll need to set up services and configure env
 #### Quick Start Guide
 
 1. **Clone and Install**
-\`\`\`bash
+```bash
 # Clone the repository
 git clone https://github.com/Zero-Calendar/zero-calendar.git
 cd zero-calendar
@@ -50,21 +50,21 @@ cd zero-calendar
 npm install
 # or
 pnpm install
-\`\`\`
+```
 
 2. **Set Up Environment**
 - Copy `.env.example` to `.env.local` in project root
-\`\`\`bash
+```bash
 cp .env.example .env.local
-\`\`\`
+```
 - Configure your environment variables (see below)
 
 3. **Start the App**
-\`\`\`bash
+```bash
 npm run dev
 # or
 pnpm dev
-\`\`\`
+```
 
 4. **Open in Browser**
 - Visit http://localhost:3000
@@ -72,7 +72,7 @@ pnpm dev
 ### Environment Variables
 Create a `.env.local` file in the project root and configure the following variables:
 
-\`\`\`
+```
 # NextAuth
 NEXTAUTH_SECRET=     # Required: Secret key for authentication (generate with `openssl rand -hex 32`)
 NEXTAUTH_URL=        # Required: URL of your application (http://localhost:3000 for local dev)
@@ -89,7 +89,7 @@ KV_REST_API_READ_ONLY_TOKEN= # Required: Vercel KV REST API read-only token
 
 # AI Integration
 GROQ_API_KEY=        # Required for AI features
-\`\`\`
+```
 
 ### Google OAuth Setup (Required for Google Calendar integration)
 
@@ -104,10 +104,10 @@ GROQ_API_KEY=        # Required for AI features
    - Development: `http://localhost:3000/api/auth/callback/google`
    - Production: `https://your-production-url/api/auth/callback/google`
 7. Add to `.env.local`:
-\`\`\`
+```
 GOOGLE_CLIENT_ID=your_client_id
 GOOGLE_CLIENT_SECRET=your_client_secret
-\`\`\`
+```
 8. Add yourself as a test user:
    - Go to OAuth consent screen
    - Under 'Test users' click 'Add Users'
@@ -137,4 +137,4 @@ GOOGLE_CLIENT_SECRET=your_client_secret
 
 ## License
 
-Zero Calendar is open-source software licensed under the [MIT license](LICENSE).
+Zero Calendar is open-source software licensed under the [MIT license](LICENSE.md).
