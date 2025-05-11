@@ -94,7 +94,7 @@ export default function Home() {
               How It Works
             </Link>
             <Link
-              href="https://github.com/your-username/zero-calendar"
+              href="https://github.com/Zero-Calendar/zero-calendar"
               target="_blank"
               className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1"
             >
