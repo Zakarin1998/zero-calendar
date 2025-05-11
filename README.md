@@ -137,4 +137,4 @@ GOOGLE_CLIENT_SECRET=your_client_secret
 
 ## License
 
-Zero Calendar is open-source software licensed under the [MIT license](LICENSE.md).
+Zero Calendar is open-source software licensed under the [MIT license](LICENSE).
