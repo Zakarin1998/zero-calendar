@@ -43,7 +43,7 @@ Before running the application, you'll need to set up services and configure env
 1. **Clone and Install**
 \`\`\`bash
 # Clone the repository
-git clone https://github.com/your-username/zero-calendar.git
+git clone https://github.com/Zero-Calendar/zero-calendar.git
 cd zero-calendar
 
 # Install dependencies
