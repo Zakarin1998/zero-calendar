@@ -1030,8 +1030,8 @@
 
 .feature-card {
   border-radius: 0.75rem;
-  border: 1px solid hsl(var(--mono-200));
-  background-color: hsl(var(--background));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: black/30 !important; /* Force black background */
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   overflow: hidden;
   padding: 1.5rem;
@@ -1039,8 +1039,9 @@
 }
 
 .dark .feature-card {
-  border-color: hsl(var(--mono-700));
+  border-color: rgba(255, 255, 255, 0.1);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  background-color: black !important; /* Force black background in dark mode too */
 }
 
 .feature-card:hover {
@@ -1287,14 +1288,10 @@
   color: transparent;
 }
 
-/* Gradient utilities */
 .bg-gradient-radial {
   background-image: radial-gradient(var(--tw-gradient-stops));
 }
 
-/* Add these animation styles to the end of your globals.css file */
-
-/* Framer Motion animations */
 .framer-motion-fade-in {
   opacity: 0;
   transform: translateY(10px);
@@ -1326,4 +1323,75 @@
   opacity: 1;
   transform: translateX(0);
   transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+/* Waitlist page specific styles */
+.neo-gradient {
+  background: linear-gradient(to right, #fff, rgba(255, 255, 255, 0.75));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+.dark .neo-gradient {
+  background: linear-gradient(to right, #fff, rgba(255, 255, 255, 0.75));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+.shadow-glow-purple {
+  box-shadow: 0 0 30px 5px rgba(168, 85, 247, 0.15);
+}
+
+.shadow-glow-blue {
+  box-shadow: 0 0 30px 5px rgba(59, 130, 246, 0.15);
+}
+
+.waitlist-input-focus {
+  transform: scale(1.02);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.waitlist-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+.waitlist-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.waitlist-button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: 0.5s;
+}
+
+.waitlist-button:hover::after {
+  left: 100%;
 }
