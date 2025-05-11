@@ -109,10 +109,8 @@ export async function createUser(name: string, email: string, password: string) 
 }
 
 export async function saveUserPreferences(userId: string, preferences: any) {
-  // If timezone is not provided, try to get the user's timezone
   if (!preferences.timezone) {
     try {
-      // Default to the user's browser timezone if available, otherwise UTC
       preferences.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
     } catch (error) {
       preferences.timezone = "UTC"
@@ -127,7 +125,6 @@ export async function getUserPreferences(userId: string) {
   return data?.preferences ? JSON.parse(data.preferences as string) : {}
 }
 
-// Add a function to get the user's timezone
 export async function getUserTimezone(userId: string): Promise<string> {
   try {
     const userData = await kv.hgetall(`user:${userId}`)
