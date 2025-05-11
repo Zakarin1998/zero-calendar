@@ -128,7 +128,7 @@ GOOGLE_CLIENT_SECRET=your_client_secret
 
 ## Features
 
-- 📅 **Month View Calendar**: Visualize your entire month at a glance
+- 📅 **View your Calendar**: Visualize your entire month at a glance
 - 🤖 **AI Assistant**: Interact with your calendar using natural language
 - 🔄 **Google Calendar Integration**: Sync with your existing Google Calendar
 - 🎨 **Customizable UI**: Dark mode and personalized settings
