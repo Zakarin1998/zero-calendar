@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { saveUserPreferences } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "next-themes"
+import { GoogleCalendarSync } from "@/components/google-calendar-sync"
 
 const formSchema = z.object({
   theme: z.enum(["light", "dark", "system"]),
@@ -21,6 +22,7 @@ const formSchema = z.object({
   showWeekNumbers: z.boolean(),
   enableNotifications: z.boolean(),
   defaultDuration: z.enum(["30", "60", "90"]),
+  timezone: z.string().default("UTC"),
 })
 
 interface SettingsFormProps {
@@ -42,6 +44,7 @@ export function SettingsForm({ initialPreferences }: SettingsFormProps) {
       showWeekNumbers: initialPreferences.showWeekNumbers || false,
       enableNotifications: initialPreferences.enableNotifications !== false,
       defaultDuration: initialPreferences.defaultDuration || "60",
+      timezone: initialPreferences.timezone || "UTC",
     },
   })
 
@@ -163,6 +166,31 @@ export function SettingsForm({ initialPreferences }: SettingsFormProps) {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="timezone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Timezone</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select your timezone" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="max-h-[200px]">
+                          {Intl.supportedValuesOf("timeZone").map((timezone) => (
+                            <SelectItem key={timezone} value={timezone}>
+                              {timezone.replace(/_/g, " ")}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>Choose your timezone for calendar events</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
               <div className="space-y-4">
                 <FormField
@@ -248,26 +276,35 @@ export function SettingsForm({ initialPreferences }: SettingsFormProps) {
               <div>
                 <h3 className="text-sm font-medium">Google Calendar</h3>
                 <p className="text-sm text-muted-foreground">Connected</p>
+                {session?.user?.provider === "google" && (
+                  <div className="mt-2">
+                    <GoogleCalendarSync />
+                  </div>
+                )}
               </div>
             </div>
             <Button variant="outline" size="sm">
               Disconnect
             </Button>
           </div>
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50">
             <div className="flex items-center space-x-4">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-8 w-8">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-8 w-8 opacity-50">
                 <path fill="#f25022" d="M1 1h10v10H1z" />
                 <path fill="#00a4ef" d="M1 13h10v10H1z" />
                 <path fill="#7fba00" d="M13 1h10v10H13z" />
                 <path fill="#ffb900" d="M13 13h10v10H13z" />
               </svg>
               <div>
-                <h3 className="text-sm font-medium">Microsoft Calendar</h3>
-                <p className="text-sm text-muted-foreground">Not connected</p>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Microsoft/Outlook Calendar</h3>
+                <div className="flex items-center mt-1">
+                  <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                    Coming Soon
+                  </span>
+                </div>
               </div>
             </div>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled className="opacity-50 cursor-not-allowed">
               Connect
             </Button>
           </div>
