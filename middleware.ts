@@ -13,10 +13,7 @@ export async function middleware(request: NextRequest) {
   const isPathProtected = protectedPaths.some((path) => pathname.startsWith(path))
 
   if (isPathProtected) {
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    })
+    const token = await getToken({ req: request })
 
     if (!token) {
       const url = new URL(`/auth/signin`, request.url)
