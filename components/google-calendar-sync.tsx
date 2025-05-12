@@ -31,7 +31,6 @@ export function GoogleCalendarSync() {
         description: "Your calendar has been synced with Google Calendar",
       })
 
-      // Reset success status after 3 seconds
       setTimeout(() => {
         setSyncStatus("idle")
       }, 3000)
@@ -43,7 +42,6 @@ export function GoogleCalendarSync() {
         variant: "destructive",
       })
 
-      // Reset error status after 3 seconds
       setTimeout(() => {
         setSyncStatus("idle")
       }, 3000)
