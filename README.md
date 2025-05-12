@@ -157,6 +157,9 @@ Zero Calendar includes keyboard shortcuts for power users:
 | `S` | Go to settings |
 | `Esc` | Close dialogs |
 
+## Contribute
+Please refer to the [contributing guide](CONTRIBUTING.md).
+
 ## License
 
 Zero Calendar is open-source software licensed under the [MIT license](LICENSE.md).
