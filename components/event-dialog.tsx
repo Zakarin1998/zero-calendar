@@ -50,7 +50,6 @@ const formSchema = z.object({
   color: z.string().default("#3b82f6"),
   timezone: z.string(),
   allDay: z.boolean().default(false),
-  // Recurrence fields
   isRecurring: z.boolean().default(false),
   recurrenceFrequency: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
   recurrenceInterval: z.number().min(1).max(365).optional(),
@@ -60,7 +59,6 @@ const formSchema = z.object({
   recurrenceByDay: z.array(z.enum(["MO", "TU", "WE", "TH", "FR", "SA", "SU"])).optional(),
   recurrenceByMonthDay: z.array(z.number().min(1).max(31)).optional(),
   recurrenceByMonth: z.array(z.number().min(1).max(12)).optional(),
-  // Reminder fields
   reminders: z
     .array(
       z.object({
@@ -69,7 +67,6 @@ const formSchema = z.object({
       }),
     )
     .default([]),
-  // Category/Tag field
   category: z.string().optional(),
 })
 
@@ -133,20 +130,16 @@ export function EventDialog({
   const isAllDay = form.watch("allDay")
 
   useEffect(() => {
-    // Get list of available timezones
     const timezones = Intl.supportedValuesOf("timeZone")
     setAvailableTimezones(timezones)
-
-    // Reset delete confirmation when dialog opens/closes
+    
     setConfirmDelete(false)
   }, [open])
 
   useEffect(() => {
     if (event) {
-      // Check if this is a recurring instance
       setIsRecurringInstance(!!event.isRecurringInstance)
 
-      // Set form values from event
       form.reset({
         title: event.title,
         description: event.description || "",
@@ -173,7 +166,6 @@ export function EventDialog({
         category: event.category || "",
       })
     } else {
-      // Reset form for new event
       setIsRecurringInstance(false)
       form.reset({
         title: "",
@@ -199,7 +191,6 @@ export function EventDialog({
     }
   }, [event, form, open])
 
-  // Format date for input fields, handling timezones
   function formatDateTimeForInput(dateStr: string, timezone?: string, allDay?: boolean): string {
     try {
       const date = parseISO(dateStr)
@@ -220,11 +211,9 @@ export function EventDialog({
     }
   }
 
-  // Convert local date to UTC with timezone consideration
   function convertToUTC(dateStr: string, timezone: string, allDay?: boolean): string {
     try {
       if (allDay) {
-        // For all-day events, use the date without time
         return `${dateStr.slice(0, 10)}T00:00:00.000Z`
       }
 
@@ -297,11 +286,9 @@ export function EventDialog({
     }
 
     try {
-      // Convert dates to UTC with timezone consideration
       const startUTC = convertToUTC(values.start, values.timezone, values.allDay)
       const endUTC = convertToUTC(values.end, values.timezone, values.allDay)
 
-      // Process recurrence data
       const recurrence = values.isRecurring
         ? {
             frequency: values.recurrenceFrequency,
@@ -315,13 +302,11 @@ export function EventDialog({
           }
         : undefined
 
-      // Handle custom category
       let finalCategory = values.category
       if (finalCategory === "custom" && customCategory) {
         finalCategory = customCategory
       }
 
-      // Process reminders
       const reminders = values.reminders.map((reminder) => {
         let minutes = reminder.time
         if (reminder.unit === "hours") minutes *= 60
@@ -329,7 +314,6 @@ export function EventDialog({
         return { minutes, method: "popup" as const }
       })
 
-      // Create event data object
       const eventData: CalendarEvent = {
         id: event?.id || `event_${Date.now()}`,
         title: values.title,
@@ -346,28 +330,21 @@ export function EventDialog({
         category: finalCategory,
       }
 
-      // Handle recurring instance editing
       if (isRecurringInstance && event?.originalEventId) {
         if (editOption === "this") {
-          // Just update this instance
           eventData.originalEventId = event.originalEventId
           eventData.isRecurringInstance = true
           eventData.exceptionDate = event.exceptionDate || event.start
         } else if (editOption === "all") {
-          // Update the master recurring event
           eventData.id = event.originalEventId
           delete eventData.isRecurringInstance
           delete eventData.originalEventId
           delete eventData.exceptionDate
         } else if (editOption === "future") {
-          // Create a new recurring series starting from this instance
           eventData.id = `event_${Date.now()}`
           delete eventData.isRecurringInstance
           delete eventData.originalEventId
           delete eventData.exceptionDate
-
-          // Also need to update the original series to end before this instance
-          // This would require additional backend logic
         }
       }
 
@@ -411,21 +388,16 @@ export function EventDialog({
 
     setIsDeleting(true)
     try {
-      // For recurring instances, handle different delete options
       if (isRecurringInstance && event.originalEventId) {
         if (editOption === "this") {
-          // Delete just this instance
           await deleteEvent(session.user.id, event.id)
         } else if (editOption === "all") {
-          // Delete the entire series
           await deleteEvent(session.user.id, event.originalEventId, true)
         } else if (editOption === "future") {
-          // This would require additional backend logic
-          // For now, just delete this instance
+      
           await deleteEvent(session.user.id, event.id)
         }
       } else {
-        // Regular event deletion
         await deleteEvent(session.user.id, event.id)
       }
 
