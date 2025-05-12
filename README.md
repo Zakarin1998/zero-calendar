@@ -128,12 +128,34 @@ GOOGLE_CLIENT_SECRET=your_client_secret
 
 ## Features
 
-- 📅 **View your Calendar**: Visualize your entire month at a glance
 - 🤖 **AI Assistant**: Interact with your calendar using natural language
 - 🔄 **Google Calendar Integration**: Sync with your existing Google Calendar
 - 🎨 **Customizable UI**: Dark mode and personalized settings
+- 🔄 **Recurring Events**: Comprehensive support for recurring events with exceptions
+- 🌐 **Timezone Management**: Full timezone support for global scheduling
+- 📤 **Import/Export**: Import and export calendar data in ICS and CSV formats
+- ⌨️ **Keyboard Shortcuts**: Power user shortcuts for efficient calendar management
 - 🔔 **Event Management**: Create, edit, and delete events with ease
 - 🔒 **Secure Authentication**: Login with email/password or Google OAuth
+
+### Keyboard Shortcuts
+
+Zero Calendar includes keyboard shortcuts for power users:
+
+| Shortcut | Action |
+|----------|--------|
+| `←` | Previous month |
+| `→` | Next month |
+| `T` | Go to today |
+| `N` | Create new event |
+| `?` | Show keyboard shortcuts |
+| `/` | Focus search |
+| `M` | Switch to month view |
+| `W` | Switch to week view |
+| `D` | Switch to day view |
+| `A` | Toggle AI assistant |
+| `S` | Go to settings |
+| `Esc` | Close dialogs |
 
 ## License
 
