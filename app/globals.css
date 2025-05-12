@@ -79,7 +79,6 @@
     --input: 0 0% 18%;
     --ring: 0 0% 83%;
 
-    /* Monochrome palette - dark mode uses same values */
     --black: 0 0% 0%;
     --white: 0 0% 100%;
     --gray-50: 0 0% 98%;
@@ -96,7 +95,6 @@
   }
 }
 
-/* Add this to the base layer to enable smooth scrolling for the entire page */
 @layer base {
   * {
     @apply border-border;
