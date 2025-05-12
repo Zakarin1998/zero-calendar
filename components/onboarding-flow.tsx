@@ -39,7 +39,7 @@ export function OnboardingFlow({ open, onComplete }: OnboardingFlowProps) {
       start: "09:00",
       end: "17:00",
     },
-    workDays: [1, 2, 3, 4, 5], // Monday to Friday
+    workDays: [1, 2, 3, 4, 5], 
     showWeekends: true,
     enableNotifications: true,
     theme: "system",
@@ -114,7 +114,6 @@ export function OnboardingFlow({ open, onComplete }: OnboardingFlowProps) {
         </DialogHeader>
 
         <div className="py-4">
-          {/* Progress indicator */}
           <div className="flex justify-between mb-8">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="flex flex-col items-center">
@@ -137,7 +136,6 @@ export function OnboardingFlow({ open, onComplete }: OnboardingFlowProps) {
             ))}
           </div>
 
-          {/* Step 1: Basic Information */}
           {step === 1 && (
             <div className="space-y-4">
               <div className="space-y-2">
@@ -188,14 +186,12 @@ export function OnboardingFlow({ open, onComplete }: OnboardingFlowProps) {
             </div>
           )}
 
-          {/* Step 2: Working Hours */}
           {step === 2 && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Working Days</Label>
                 <div className="flex flex-wrap gap-2">
                   {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, index) => {
-                    // Convert to 0-6 where 0 is Monday
                     const dayNum = (index + 1) % 7
                     return (
                       <div
@@ -264,7 +260,6 @@ export function OnboardingFlow({ open, onComplete }: OnboardingFlowProps) {
             </div>
           )}
 
-          {/* Step 3: Calendar Preferences */}
           {step === 3 && (
             <div className="space-y-4">
               <div className="space-y-2">
@@ -331,7 +326,6 @@ export function OnboardingFlow({ open, onComplete }: OnboardingFlowProps) {
             </div>
           )}
 
-          {/* Step 4: Finish */}
           {step === 4 && (
             <div className="space-y-4">
               <div className="rounded-lg border p-6 text-center space-y-4">
