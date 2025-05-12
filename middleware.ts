@@ -1,27 +1,33 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { getToken } from "next-auth/jwt"
 
-export function middleware(request: NextRequest) {
-  const path = request.nextUrl.pathname
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
 
-  if (path === "/" || path === "/index" || path === "/home") {
+  if (pathname === "/") {
     return NextResponse.redirect(new URL("/waitlist", request.url))
+  }
+
+  const protectedPaths = ["/calendar", "/settings"]
+  const isPathProtected = protectedPaths.some((path) => pathname.startsWith(path))
+
+  if (isPathProtected) {
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    })
+
+    if (!token) {
+      const url = new URL(`/auth/signin`, request.url)
+      url.searchParams.set("callbackUrl", encodeURI(pathname))
+      return NextResponse.redirect(url)
+    }
   }
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - images (image files)
-     * - api routes
-     * - waitlist path (to avoid redirect loops)
-     */
-    "/((?!_next/static|_next/image|favicon.ico|images|api|waitlist).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$).*)"],
 }
