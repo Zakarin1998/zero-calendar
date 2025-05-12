@@ -1,14 +1,18 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useRef, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { SendIcon, XIcon, ZapIcon, MicIcon, ImageIcon, AnchorIcon as AttachmentIcon } from "lucide-react"
+import { Send, Loader2, XCircle, DownloadIcon } from "lucide-react"
 import { streamCalendarQuery } from "@/lib/ai"
-import { useToast } from "@/hooks/use-toast"
+
+type Message = {
+  role: "user" | "assistant"
+  content: string
+}
 
 interface ChatPanelProps {
   open: boolean
@@ -16,197 +20,190 @@ interface ChatPanelProps {
   onToolExecution?: (result: any) => void
 }
 
-interface Message {
-  id: string
-  role: "user" | "assistant"
-  content: string
-}
-
 export function ChatPanel({ open, onOpenChange, onToolExecution }: ChatPanelProps) {
   const { data: session } = useSession()
-  const { toast } = useToast()
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: "welcome",
       role: "assistant",
-      content: "Hi there! I'm your AI calendar assistant. How can I help you today?",
+      content: "Hi! I'm your calendar assistant. How can I help you today?",
     },
   ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [currentResponse, setCurrentResponse] = useState("")
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Load messages from localStorage on component mount
+  useEffect(() => {
+    const savedMessages = localStorage.getItem("chatMessages")
+    if (savedMessages) {
+      try {
+        const parsedMessages = JSON.parse(savedMessages)
+        if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+          setMessages(parsedMessages)
+        }
+      } catch (error) {
+        console.error("Error parsing saved messages:", error)
+      }
+    }
+  }, [])
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (messages.length > 1) {
+      // Only save if we have more than the initial greeting
+      localStorage.setItem("chatMessages", JSON.stringify(messages))
+    }
+  }, [messages])
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
-    }
-  }, [messages, currentResponse])
+    scrollToBottom()
+  }, [messages])
 
-  const handleSendMessage = async () => {
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  // Generate conversation history string for context
+  const getConversationHistory = () => {
+    // Limit to last 10 messages for context window size
+    const recentMessages = messages.slice(-10)
+    return recentMessages.map((msg) => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`).join("\n\n")
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!input.trim() || !session?.user?.id) return
 
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: input,
-    }
-
-    setMessages((prev) => [...prev, userMessage])
+    const userMessage = input.trim()
     setInput("")
+
+    // Add user message to chat
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }])
+
+    // Start loading state
     setIsLoading(true)
-    setCurrentResponse("")
+
+    // Add an empty assistant message that we'll update as we receive chunks
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }])
 
     try {
+      // Get conversation history for context
+      const conversationHistory = getConversationHistory()
+
       // Stream the response
-      streamCalendarQuery(input, session.user.id, (chunk) => {
-        setCurrentResponse((prev) => prev + chunk)
-      }).then(async (result) => {
-        const fullText = await result.text
+      await streamCalendarQuery(
+        userMessage,
+        session.user.id as string,
+        (chunk) => {
+          // Update the last message with the new chunk
+          setMessages((prev) => {
+            const newMessages = [...prev]
+            const lastMessage = newMessages[newMessages.length - 1]
+            if (lastMessage.role === "assistant") {
+              lastMessage.content += chunk
+            }
+            return newMessages
+          })
+        },
+        conversationHistory,
+      )
 
-        const assistantMessage: Message = {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: fullText,
-        }
-
-        setMessages((prev) => [...prev, assistantMessage])
-        setCurrentResponse("")
-
-        // Check for tool execution patterns in the response
-        const toolCallRegex =
-          /I'll (create|update|delete|find|reschedule) (an event|your event|available times|events)/i
-        if (toolCallRegex.test(fullText)) {
-          // Notify parent component that a tool execution might be needed
-          if (onToolExecution) {
-            onToolExecution({
-              message: fullText,
-              query: input,
-            })
-          }
-        }
-      })
+      // If there's a tool execution callback, call it
+      if (onToolExecution) {
+        onToolExecution({ success: true })
+      }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to process your request. Please try again.",
-        variant: "destructive",
+      console.error("Error streaming response:", error)
+      // Update the last message with an error
+      setMessages((prev) => {
+        const newMessages = [...prev]
+        const lastMessage = newMessages[newMessages.length - 1]
+        if (lastMessage.role === "assistant") {
+          lastMessage.content = "I'm sorry, I encountered an error. Please try again."
+        }
+        return newMessages
       })
-      setCurrentResponse("")
     } finally {
       setIsLoading(false)
     }
   }
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col w-full sm:max-w-md p-0 gap-0 border-mono-200 dark:border-mono-700 shadow-glow">
-        <SheetHeader className="border-b border-mono-200 dark:border-mono-700 p-4">
-          <SheetTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-mono-900 text-mono-50 dark:bg-mono-50 dark:text-mono-900">
-                <ZapIcon className="h-4 w-4" />
-              </div>
-              <span className="font-medium">AI Calendar Assistant</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              className="h-8 w-8 rounded-lg hover:bg-mono-100 dark:hover:bg-mono-800"
-            >
-              <XIcon className="h-4 w-4" />
-            </Button>
-          </SheetTitle>
-        </SheetHeader>
+  const clearConversation = () => {
+    setMessages([
+      {
+        role: "assistant",
+        content: "Hi! I'm your calendar assistant. How can I help you today?",
+      },
+    ])
+    localStorage.removeItem("chatMessages")
+  }
 
-        <ScrollArea className="flex-1 p-4 custom-scrollbar" ref={scrollAreaRef}>
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={message.role === "user" ? "user-message" : "ai-message"}>{message.content}</div>
+  const downloadConversation = () => {
+    const conversationText = messages
+      .map((msg) => `${msg.role === "user" ? "You" : "Assistant"}: ${msg.content}`)
+      .join("\n\n")
+
+    const blob = new Blob([conversationText], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `calendar-conversation-${new Date().toISOString().split("T")[0]}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
+      <div className="fixed inset-y-0 right-0 w-full max-w-md border-l border-border bg-background shadow-lg">
+        <div className="flex h-full flex-col">
+          <div className="flex items-center justify-between border-b px-4 py-2">
+            <h2 className="text-lg font-semibold">Calendar Assistant</h2>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" onClick={downloadConversation} title="Download conversation">
+                <DownloadIcon className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={clearConversation} title="Clear conversation">
+                <XCircle className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((message, index) => (
+              <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[80%] rounded-lg p-3 ${
+                    message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                </div>
               </div>
             ))}
-            {currentResponse && (
-              <div className="flex justify-start">
-                <div className="ai-message animate-fade-in">{currentResponse}</div>
-              </div>
-            )}
-            {isLoading && !currentResponse && (
-              <div className="flex justify-start">
-                <div className="ai-typing">
-                  <div className="ai-typing-dot"></div>
-                  <div className="ai-typing-dot"></div>
-                  <div className="ai-typing-dot"></div>
-                </div>
-              </div>
-            )}
+            <div ref={messagesEndRef} />
           </div>
-        </ScrollArea>
 
-        <div className="border-t border-mono-200 dark:border-mono-700 p-4">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleSendMessage()
-            }}
-            className="space-y-2"
-          >
-            <div className="rounded-lg border border-mono-200 dark:border-mono-700 bg-mono-50 dark:bg-mono-900 p-2 flex flex-col">
-              <Input
-                placeholder="Ask about your calendar..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={isLoading}
-                className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
-              />
-              <div className="flex justify-between items-center pt-2">
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-mono-500 hover:bg-mono-100 dark:hover:bg-mono-800"
-                    disabled={isLoading}
-                  >
-                    <MicIcon className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-mono-500 hover:bg-mono-100 dark:hover:bg-mono-800"
-                    disabled={isLoading}
-                  >
-                    <ImageIcon className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-mono-500 hover:bg-mono-100 dark:hover:bg-mono-800"
-                    disabled={isLoading}
-                  >
-                    <AttachmentIcon className="h-4 w-4" />
-                  </Button>
-                </div>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={!input.trim() || isLoading}
-                  className="h-8 rounded-lg bg-mono-900 text-mono-50 hover:bg-mono-800 dark:bg-mono-50 dark:text-mono-900 dark:hover:bg-mono-200"
-                >
-                  <SendIcon className="h-4 w-4 mr-1" />
-                  Send
-                </Button>
-              </div>
-            </div>
-            <div className="text-xs text-mono-500 dark:text-mono-400 text-center">
-              Zero Calendar AI can schedule meetings, find events, and manage your calendar
-            </div>
+          <form onSubmit={handleSubmit} className="p-4 border-t flex gap-2">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask about your calendar..."
+              disabled={isLoading}
+              className="flex-1"
+            />
+            <Button type="submit" size="icon" disabled={isLoading}>
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
           </form>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </div>
   )
 }
