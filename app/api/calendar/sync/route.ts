@@ -11,14 +11,12 @@ export async function POST() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    // Check if user has Google Calendar connected
     const hasGoogleCalendar = await hasGoogleCalendarConnected(session.user.id)
 
     if (!hasGoogleCalendar) {
       return NextResponse.json({ message: "Google Calendar not connected" }, { status: 400 })
     }
 
-    // Sync with Google Calendar
     const success = await syncWithGoogleCalendar(session.user.id)
 
     if (success) {
@@ -38,7 +36,6 @@ export async function POST() {
   } catch (error: any) {
     console.error("Calendar sync error:", error)
 
-    // Provide more detailed error message
     let errorMessage = "Something went wrong during synchronization"
 
     if (error.message) {
