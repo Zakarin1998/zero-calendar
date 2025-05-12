@@ -158,7 +158,7 @@ Zero Calendar includes keyboard shortcuts for power users:
 | `Esc` | Close dialogs |
 
 ## Contribute
-Please refer to the [contributing guide](CONTRIBUTING.md).
+Please refer to the [contributing guide](.github/CONTRIBUTING.md).
 
 ## License
 
