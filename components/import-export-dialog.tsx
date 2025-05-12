@@ -39,7 +39,6 @@ export function ImportExportDialog({ open, onOpenChange, onSuccess }: ImportExpo
     if (e.target.files && e.target.files.length > 0) {
       setFile(e.target.files[0])
 
-      // Auto-detect format from file extension
       const fileName = e.target.files[0].name.toLowerCase()
       if (fileName.endsWith(".ics") || fileName.endsWith(".ical")) {
         setImportFormat("ics")
@@ -114,7 +113,6 @@ export function ImportExportDialog({ open, onOpenChange, onSuccess }: ImportExpo
         mimeType = "text/csv"
       }
 
-      // Create a blob and download link
       const blob = new Blob([content], { type: mimeType })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
