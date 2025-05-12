@@ -18,14 +18,12 @@ export default function WaitlistPage() {
   const { toast } = useToast()
 
   useEffect(() => {
-    // Fetch the current waitlist count - no fake numbers
     fetch("/api/waitlist")
       .then((res) => res.json())
       .then((data) => {
         setWaitlistCount(data.count || 0)
       })
       .catch(() => {
-        // Fallback count if the API fails
         setWaitlistCount(0)
       })
   }, [])
@@ -147,54 +145,6 @@ export default function WaitlistPage() {
               privacy-focused, and designed to give you back control of your most valuable asset—time.
             </p>
 
-            {/* Enhanced feature cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-              <motion.div
-                className="feature-card backdrop-blur-sm p-6 flex flex-col items-center !bg-black/30 border border-white/10 rounded-xl"
-                style={{ backgroundColor: "black" }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1, duration: 0.5 }}
-                whileHover={{ y: -5, transition: { duration: 0.2 } }}
-              >
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-500/20 to-fuchsia-500/20 flex items-center justify-center mb-4 ring-1 ring-white/10">
-                  <ZapIcon className="h-6 w-6 text-white" />
-                </div>
-                <h3 className="font-medium text-white text-lg mb-2">AI-Powered Scheduling</h3>
-                <p className="text-gray-400 text-sm text-center">Let AI handle the complexity of managing your time</p>
-              </motion.div>
-
-              <motion.div
-                className="feature-card backdrop-blur-sm p-6 flex flex-col items-center !bg-black border border-white/10 rounded-xl"
-                style={{ backgroundColor: "black" }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
-                whileHover={{ y: -5, transition: { duration: 0.2 } }}
-              >
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center mb-4 ring-1 ring-white/10">
-                  <LockIcon className="h-6 w-6 text-white" />
-                </div>
-                <h3 className="font-medium text-white text-lg mb-2">Privacy-First Design</h3>
-                <p className="text-gray-400 text-sm text-center">Your data stays yours, always</p>
-              </motion.div>
-
-              <motion.div
-                className="feature-card backdrop-blur-sm p-6 flex flex-col items-center !bg-black border border-white/10 rounded-xl"
-                style={{ backgroundColor: "black" }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.5 }}
-                whileHover={{ y: -5, transition: { duration: 0.2 } }}
-              >
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-fuchsia-500/20 to-violet-500/20 flex items-center justify-center mb-4 ring-1 ring-white/10">
-                  <UsersIcon className="h-6 w-6 text-white" />
-                </div>
-                <h3 className="font-medium text-white text-lg mb-2">Seamless Collaboration</h3>
-                <p className="text-gray-400 text-sm text-center">Work together without the friction</p>
-              </motion.div>
-            </div>
-
             {/* Enhanced waitlist form */}
             <motion.div
               className="mb-8 max-w-md mx-auto backdrop-blur-sm p-8 rounded-xl border border-white/10 bg-black/30"
@@ -268,6 +218,54 @@ export default function WaitlistPage() {
                 </div>
               )}
             </motion.div>
+
+            {/* Enhanced feature cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+              <motion.div
+                className="feature-card backdrop-blur-sm p-6 flex flex-col items-center !bg-black/30 border border-white/10 rounded-xl"
+                style={{ backgroundColor: "black" }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.5 }}
+                whileHover={{ y: -5, transition: { duration: 0.2 } }}
+              >
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-500/20 to-fuchsia-500/20 flex items-center justify-center mb-4 ring-1 ring-white/10">
+                  <ZapIcon className="h-6 w-6 text-white" />
+                </div>
+                <h3 className="font-medium text-white text-lg mb-2">AI-Powered Scheduling</h3>
+                <p className="text-gray-400 text-sm text-center">Let AI handle the complexity of managing your time</p>
+              </motion.div>
+
+              <motion.div
+                className="feature-card backdrop-blur-sm p-6 flex flex-col items-center !bg-black border border-white/10 rounded-xl"
+                style={{ backgroundColor: "black" }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+                whileHover={{ y: -5, transition: { duration: 0.2 } }}
+              >
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center mb-4 ring-1 ring-white/10">
+                  <LockIcon className="h-6 w-6 text-white" />
+                </div>
+                <h3 className="font-medium text-white text-lg mb-2">Privacy-First Design</h3>
+                <p className="text-gray-400 text-sm text-center">Your data stays yours, always</p>
+              </motion.div>
+
+              <motion.div
+                className="feature-card backdrop-blur-sm p-6 flex flex-col items-center !bg-black border border-white/10 rounded-xl"
+                style={{ backgroundColor: "black" }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.5 }}
+                whileHover={{ y: -5, transition: { duration: 0.2 } }}
+              >
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-fuchsia-500/20 to-violet-500/20 flex items-center justify-center mb-4 ring-1 ring-white/10">
+                  <UsersIcon className="h-6 w-6 text-white" />
+                </div>
+                <h3 className="font-medium text-white text-lg mb-2">Seamless Collaboration</h3>
+                <p className="text-gray-400 text-sm text-center">Work together without the friction</p>
+              </motion.div>
+            </div>
           </motion.div>
         </div>
       </main>
