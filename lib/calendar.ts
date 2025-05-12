@@ -11,6 +11,7 @@ import ical from "ical-generator"
 import { v4 as uuidv4 } from "uuid"
 import { RRule } from "rrule"
 
+
 export type RecurrenceRule = {
   frequency: "daily" | "weekly" | "monthly" | "yearly"
   interval: number
@@ -21,15 +22,16 @@ export type RecurrenceRule = {
   byMonth?: number[]
   bySetPos?: number[]
   weekStart?: string
-  exceptions?: string[] // ISO date strings for exceptions
+  exceptions?: string[]
 }
+
 
 export type CalendarEvent = {
   id: string
   title: string
   description?: string
-  start: string // ISO string
-  end: string // ISO string
+  start: string
+  end: string
   location?: string
   color?: string
   userId: string
@@ -37,7 +39,7 @@ export type CalendarEvent = {
   sourceId?: string
   recurrence?: RecurrenceRule
   exceptions?: {
-    date: string // ISO date string
+    date: string
     status: "cancelled" | "modified"
     modifiedEvent?: Omit<CalendarEvent, "id" | "userId" | "recurrence" | "exceptions">
   }[]
@@ -47,7 +49,11 @@ export type CalendarEvent = {
   timezone?: string
   allDay?: boolean
   isRecurring?: boolean
+  isShared?: boolean
+  sharedBy?: string
+  sharedWith?: string[]
 }
+
 
 function recurrenceRuleToRRuleOptions(rule: RecurrenceRule, eventStart: Date): RRule.Options {
   const options: RRule.Options = {
@@ -111,6 +117,7 @@ function recurrenceRuleToRRuleOptions(rule: RecurrenceRule, eventStart: Date): R
   return options
 }
 
+
 function generateRecurringInstances(
   event: CalendarEvent,
   startRange: Date,
@@ -126,11 +133,14 @@ function generateRecurringInstances(
   const rruleOptions = recurrenceRuleToRRuleOptions(event.recurrence, eventStart)
   const rule = new RRule(rruleOptions)
 
+
   const occurrences = rule.between(startRange, endRange, true)
+
 
   const instances = occurrences.map((date) => {
     const instanceStart = new Date(date)
     const instanceEnd = new Date(instanceStart.getTime() + duration)
+
 
     const exceptionDate = event.exceptions?.find((ex) => {
       const exDate = parseISO(ex.date)
@@ -141,9 +151,11 @@ function generateRecurringInstances(
       )
     })
 
+
     if (exceptionDate?.status === "cancelled") {
       return null
     }
+
 
     if (exceptionDate?.status === "modified" && exceptionDate.modifiedEvent) {
       return {
@@ -161,6 +173,7 @@ function generateRecurringInstances(
       }
     }
 
+
     return {
       ...event,
       id: `${event.id}_${format(instanceStart, "yyyyMMdd")}`,
@@ -171,13 +184,16 @@ function generateRecurringInstances(
     }
   })
 
+
   return instances.filter(Boolean) as CalendarEvent[]
 }
 
-async function getUserTimezone(userId: string): Promise<string> {
+
+export async function getUserTimezone(userId: string): Promise<string> {
   const userData = await kv.hgetall(`user:${userId}`)
   return (userData?.timezone as string) || "UTC"
 }
+
 
 function adjustEventTimezone(event: CalendarEvent, fromTimezone: string, toTimezone: string): CalendarEvent {
   if (fromTimezone === toTimezone || event.allDay) {
@@ -198,16 +214,21 @@ function adjustEventTimezone(event: CalendarEvent, fromTimezone: string, toTimez
   }
 }
 
+
 export async function getEvents(userId: string, start: Date, end: Date): Promise<CalendarEvent[]> {
+
   const timezone = await getUserTimezone(userId)
+
 
   const startUtc = zonedTimeToUtc(start, timezone)
   const endUtc = zonedTimeToUtc(end, timezone)
+
 
   const userData = await kv.hgetall(`user:${userId}`)
   const hasGoogleCalendar = userData?.provider === "google" && userData?.accessToken && userData?.refreshToken
 
   let events: CalendarEvent[] = []
+
 
   if (hasGoogleCalendar) {
     try {
@@ -222,20 +243,26 @@ export async function getEvents(userId: string, start: Date, end: Date): Promise
       events = [...events, ...googleEvents]
     } catch (error) {
       console.error("Error fetching Google Calendar events:", error)
+
     }
   }
+
 
   const startTimestamp = startUtc.getTime()
   const endTimestamp = endUtc.getTime()
 
+
   const localEvents = await kv.zrange(`events:${userId}`, 0, -1)
 
   if (localEvents && localEvents.length > 0) {
+
     for (const event of localEvents as CalendarEvent[]) {
       if (event.recurrence) {
+
         const instances = generateRecurringInstances(event, startUtc, endUtc, timezone)
         events = [...events, ...instances]
       } else {
+
         const eventStart = new Date(event.start).getTime()
         const eventEnd = new Date(event.end).getTime()
 
@@ -250,26 +277,39 @@ export async function getEvents(userId: string, start: Date, end: Date): Promise
     }
   }
 
+
+  const sharedEvents = await getSharedEvents(userId, startUtc, endUtc)
+  events = [...events, ...sharedEvents]
+
+
   return events.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
 }
 
+
 export async function createEvent(newEvent: CalendarEvent): Promise<CalendarEvent> {
+
   const timezone = await getUserTimezone(newEvent.userId)
 
+
   newEvent.timezone = newEvent.timezone || timezone
+
 
   if (!newEvent.id) {
     newEvent.id = `event_${uuidv4()}`
   }
 
+
   const userData = await kv.hgetall(`user:${newEvent.userId}`)
   const hasGoogleCalendar = userData?.provider === "google" && userData?.accessToken && userData?.refreshToken
 
+
   if (newEvent.source === "local" || !hasGoogleCalendar) {
+
     const startTimestamp = new Date(newEvent.start).getTime()
     await kv.zadd(`events:${newEvent.userId}`, { score: startTimestamp, member: newEvent })
     return newEvent
   }
+
 
   const googleEvent = await createGoogleCalendarEvent(
     newEvent.userId,
@@ -280,6 +320,7 @@ export async function createEvent(newEvent: CalendarEvent): Promise<CalendarEven
   )
 
   if (googleEvent) {
+
     if (newEvent.categories?.length || newEvent.reminders?.length || newEvent.recurrence) {
       await kv.hset(`event_meta:${newEvent.userId}:${googleEvent.id}`, {
         categories: newEvent.categories || [],
@@ -291,30 +332,38 @@ export async function createEvent(newEvent: CalendarEvent): Promise<CalendarEven
     return googleEvent
   }
 
+
   newEvent.source = "local"
   const startTimestamp = new Date(newEvent.start).getTime()
   await kv.zadd(`events:${newEvent.userId}`, { score: startTimestamp, member: newEvent })
   return newEvent
 }
 
+
 export async function updateEvent(updatedEvent: CalendarEvent): Promise<CalendarEvent> {
+
   const timezone = await getUserTimezone(updatedEvent.userId)
+
 
   updatedEvent.timezone = updatedEvent.timezone || timezone
 
+
   if (updatedEvent.isRecurringInstance && updatedEvent.originalEventId) {
+
     const allEvents = await kv.zrange(`events:${updatedEvent.userId}`, 0, -1)
     const originalEvent = allEvents.find((event: any) => event.id === updatedEvent.originalEventId) as
       | CalendarEvent
       | undefined
 
     if (originalEvent && originalEvent.recurrence) {
+
       const exceptionDate = updatedEvent.exceptionDate || updatedEvent.start
       const exceptions = originalEvent.exceptions || []
 
       const existingExceptionIndex = exceptions.findIndex((ex) => ex.date === exceptionDate)
 
       if (existingExceptionIndex >= 0) {
+
         exceptions[existingExceptionIndex] = {
           date: exceptionDate,
           status: "modified",
@@ -329,6 +378,7 @@ export async function updateEvent(updatedEvent: CalendarEvent): Promise<Calendar
           },
         }
       } else {
+
         exceptions.push({
           date: exceptionDate,
           status: "modified",
@@ -344,12 +394,15 @@ export async function updateEvent(updatedEvent: CalendarEvent): Promise<Calendar
         })
       }
 
+
       const updatedOriginalEvent = {
         ...originalEvent,
         exceptions,
       }
 
+
       await kv.zrem(`events:${updatedEvent.userId}`, originalEvent)
+
 
       const startTimestamp = new Date(originalEvent.start).getTime()
       await kv.zadd(`events:${updatedEvent.userId}`, { score: startTimestamp, member: updatedOriginalEvent })
@@ -358,10 +411,13 @@ export async function updateEvent(updatedEvent: CalendarEvent): Promise<Calendar
     }
   }
 
+
+
   if (updatedEvent.source === "google") {
     const userData = await kv.hgetall(`user:${updatedEvent.userId}`)
 
     if (userData?.accessToken && userData?.refreshToken) {
+
       const googleEvent = await updateGoogleCalendarEvent(
         updatedEvent.userId,
         userData.accessToken as string,
@@ -371,6 +427,7 @@ export async function updateEvent(updatedEvent: CalendarEvent): Promise<Calendar
       )
 
       if (googleEvent) {
+
         if (updatedEvent.categories?.length || updatedEvent.reminders?.length || updatedEvent.recurrence) {
           await kv.hset(`event_meta:${updatedEvent.userId}:${googleEvent.id}`, {
             categories: updatedEvent.categories || [],
@@ -383,6 +440,7 @@ export async function updateEvent(updatedEvent: CalendarEvent): Promise<Calendar
       }
     }
   }
+
 
 
   const allEvents = await kv.zrange(`events:${updatedEvent.userId}`, 0, -1)
@@ -401,13 +459,16 @@ export async function updateEvent(updatedEvent: CalendarEvent): Promise<Calendar
 
 
 export async function deleteEvent(userId: string, eventId: string, deleteAllInstances = false): Promise<boolean> {
+
   if (eventId.includes("_") && !deleteAllInstances) {
     const originalEventId = eventId.split("_")[0]
+
 
     const allEvents = await kv.zrange(`events:${userId}`, 0, -1)
     const originalEvent = allEvents.find((event: any) => event.id === originalEventId) as CalendarEvent | undefined
 
     if (originalEvent && originalEvent.recurrence) {
+
       const instanceDateStr = eventId.split("_")[1]
       const instanceDate = new Date(
         Number.parseInt(instanceDateStr.substring(0, 4)),
@@ -415,18 +476,22 @@ export async function deleteEvent(userId: string, eventId: string, deleteAllInst
         Number.parseInt(instanceDateStr.substring(6, 8)),
       )
 
+
       const exceptions = originalEvent.exceptions || []
       exceptions.push({
         date: instanceDate.toISOString(),
         status: "cancelled",
       })
 
+
       const updatedOriginalEvent = {
         ...originalEvent,
         exceptions,
       }
 
+
       await kv.zrem(`events:${userId}`, originalEvent)
+
 
       const startTimestamp = new Date(originalEvent.start).getTime()
       await kv.zadd(`events:${userId}`, { score: startTimestamp, member: updatedOriginalEvent })
@@ -436,14 +501,17 @@ export async function deleteEvent(userId: string, eventId: string, deleteAllInst
   }
 
 
+
   const allEvents = await kv.zrange(`events:${userId}`, 0, -1)
   const event = allEvents.find((event: any) => event.id === eventId) as CalendarEvent | undefined
 
   if (!event) {
+
     const userData = await kv.hgetall(`user:${userId}`)
 
     if (userData?.provider === "google" && userData?.accessToken && userData?.refreshToken) {
       try {
+
         await deleteGoogleCalendarEvent(
           userId,
           userData.accessToken as string,
@@ -451,6 +519,7 @@ export async function deleteEvent(userId: string, eventId: string, deleteAllInst
           userData.expiresAt as number,
           eventId,
         )
+
 
         await kv.del(`event_meta:${userId}:${eventId}`)
 
@@ -463,6 +532,7 @@ export async function deleteEvent(userId: string, eventId: string, deleteAllInst
 
     return false
   }
+
 
   if (event.source === "google" && event.sourceId) {
     const userData = await kv.hgetall(`user:${userId}`)
@@ -478,21 +548,28 @@ export async function deleteEvent(userId: string, eventId: string, deleteAllInst
         )
       } catch (error) {
         console.error("Error deleting Google Calendar event:", error)
+
       }
     }
   }
 
+
   await kv.zrem(`events:${userId}`, event)
+
 
   await kv.del(`event_meta:${userId}:${eventId}`)
 
   return true
 }
 
+
 export async function searchEvents(userId: string, query: string): Promise<CalendarEvent[]> {
+
   const allEvents = await kv.zrange(`events:${userId}`, 0, -1)
 
+
   const timezone = await getUserTimezone(userId)
+
 
   const queryLower = query.toLowerCase()
   const matchingEvents = allEvents.filter((event: any) => {
@@ -503,14 +580,16 @@ export async function searchEvents(userId: string, query: string): Promise<Calen
     )
   })
 
+
   const userData = await kv.hgetall(`user:${userId}`)
   const hasGoogleCalendar = userData?.provider === "google" && userData?.accessToken && userData?.refreshToken
 
   if (hasGoogleCalendar) {
     try {
 
-      const start = new Date(0) // Beginning of time
-      const end = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365) // One year from now
+
+      const start = new Date(0)
+      const end = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365)
 
       const googleEvents = await getGoogleCalendarEvents(
         userId,
@@ -529,6 +608,7 @@ export async function searchEvents(userId: string, query: string): Promise<Calen
         )
       })
 
+
       const allMatchingEvents = [...matchingEvents, ...matchingGoogleEvents]
       const uniqueEvents = allMatchingEvents.filter(
         (event, index, self) => index === self.findIndex((e) => e.id === event.id),
@@ -537,23 +617,30 @@ export async function searchEvents(userId: string, query: string): Promise<Calen
       return uniqueEvents.map((event) => adjustEventTimezone(event as CalendarEvent, timezone))
     } catch (error) {
       console.error("Error searching Google Calendar:", error)
+
     }
   }
 
   return matchingEvents.map((event) => adjustEventTimezone(event as CalendarEvent, timezone))
 }
 
+
 export async function exportToICS(userId: string, start?: Date, end?: Date): Promise<string> {
+
   const userTimezone = await getUserTimezone(userId)
 
+
   const events = await getEvents(userId, start || new Date(0), end || new Date(Date.now() + 1000 * 60 * 60 * 24 * 365))
+
 
   const calendar = ical({
     name: "Zero Calendar",
     timezone: userTimezone,
   })
 
+
   events.forEach((event) => {
+
     if (event.isRecurringInstance) return
 
     const icalEvent = calendar.createEvent({
@@ -567,16 +654,19 @@ export async function exportToICS(userId: string, start?: Date, end?: Date): Pro
       allDay: event.allDay,
     })
 
+
     if (event.recurrence) {
       const rruleOptions = recurrenceRuleToRRuleOptions(event.recurrence, new Date(event.start))
       const rule = new RRule(rruleOptions)
       icalEvent.repeating(rule.toString())
+
 
       if (event.exceptions) {
         event.exceptions.forEach((exception) => {
           if (exception.status === "cancelled") {
             icalEvent.exdate(new Date(exception.date))
           } else if (exception.status === "modified" && exception.modifiedEvent) {
+
             calendar.createEvent({
               id: `${event.id}_exception_${new Date(exception.date).toISOString()}`,
               start: new Date(exception.modifiedEvent.start || event.start),
@@ -593,6 +683,7 @@ export async function exportToICS(userId: string, start?: Date, end?: Date): Pro
       }
     }
 
+
     if (event.attendees) {
       event.attendees.forEach((attendee) => {
         icalEvent.createAttendee({
@@ -603,6 +694,7 @@ export async function exportToICS(userId: string, start?: Date, end?: Date): Pro
       })
     }
 
+
     if (event.categories) {
       icalEvent.categories(event.categories)
     }
@@ -611,21 +703,26 @@ export async function exportToICS(userId: string, start?: Date, end?: Date): Pro
   return calendar.toString()
 }
 
+
 export async function importFromICS(userId: string, icsData: string): Promise<{ imported: number; errors: number }> {
   const userTimezone = await getUserTimezone(userId)
   let imported = 0
   let errors = 0
 
   try {
+
     const ical = require("node-ical")
     const parsedEvents = ical.parseICS(icsData)
+
 
     for (const key in parsedEvents) {
       const parsedEvent = parsedEvents[key]
 
+
       if (parsedEvent.type !== "VEVENT") continue
 
       try {
+
         const event: CalendarEvent = {
           id: `imported_${uuidv4()}`,
           title: parsedEvent.summary || "Untitled Event",
@@ -639,8 +736,10 @@ export async function importFromICS(userId: string, icsData: string): Promise<{ 
           allDay: parsedEvent.allDay || false,
         }
 
+
         if (parsedEvent.rrule) {
           const rrule = parsedEvent.rrule.toString()
+
 
           let frequency: "daily" | "weekly" | "monthly" | "yearly" = "daily"
           if (rrule.includes("FREQ=DAILY")) frequency = "daily"
@@ -648,23 +747,30 @@ export async function importFromICS(userId: string, icsData: string): Promise<{ 
           if (rrule.includes("FREQ=MONTHLY")) frequency = "monthly"
           if (rrule.includes("FREQ=YEARLY")) frequency = "yearly"
 
+
           const intervalMatch = rrule.match(/INTERVAL=(\d+)/)
           const interval = intervalMatch ? Number.parseInt(intervalMatch[1]) : 1
+
 
           const countMatch = rrule.match(/COUNT=(\d+)/)
           const count = countMatch ? Number.parseInt(countMatch[1]) : undefined
 
+
           const untilMatch = rrule.match(/UNTIL=(\d+T\d+Z)/)
           const until = untilMatch ? new Date(untilMatch[1]).toISOString() : undefined
+
 
           const byDayMatch = rrule.match(/BYDAY=([^;]+)/)
           const byDay = byDayMatch ? byDayMatch[1].split(",") : undefined
 
+
           const byMonthDayMatch = rrule.match(/BYMONTHDAY=([^;]+)/)
           const byMonthDay = byMonthDayMatch ? byMonthDayMatch[1].split(",").map(Number) : undefined
 
+
           const byMonthMatch = rrule.match(/BYMONTH=([^;]+)/)
           const byMonth = byMonthMatch ? byMonthMatch[1].split(",").map(Number) : undefined
+
 
           event.recurrence = {
             frequency,
@@ -676,8 +782,10 @@ export async function importFromICS(userId: string, icsData: string): Promise<{ 
             byMonth,
           }
 
+
           if (parsedEvent.exdate) {
             event.exceptions = []
+
 
             const exdates = Array.isArray(parsedEvent.exdate) ? parsedEvent.exdate : [parsedEvent.exdate]
 
@@ -689,6 +797,7 @@ export async function importFromICS(userId: string, icsData: string): Promise<{ 
             })
           }
         }
+
 
         await createEvent(event)
         imported++
@@ -705,23 +814,31 @@ export async function importFromICS(userId: string, icsData: string): Promise<{ 
   }
 }
 
+
 export async function exportToCSV(userId: string, start?: Date, end?: Date): Promise<string> {
+
   const userTimezone = await getUserTimezone(userId)
+
 
   const events = await getEvents(userId, start || new Date(0), end || new Date(Date.now() + 1000 * 60 * 60 * 24 * 365))
 
+
   let csv = "Subject,Start Date,Start Time,End Date,End Time,All Day,Description,Location,Categories\n"
+
 
   events.forEach((event) => {
     const startDate = new Date(event.start)
     const endDate = new Date(event.end)
+
 
     const startDateFormatted = format(startDate, "MM/dd/yyyy")
     const startTimeFormatted = event.allDay ? "" : format(startDate, "HH:mm")
     const endDateFormatted = format(endDate, "MM/dd/yyyy")
     const endTimeFormatted = event.allDay ? "" : format(endDate, "HH:mm")
 
+
     const escapeCSV = (field = "") => `"${field.replace(/"/g, '""')}"`
+
 
     csv +=
       [
@@ -740,14 +857,17 @@ export async function exportToCSV(userId: string, start?: Date, end?: Date): Pro
   return csv
 }
 
+
 export async function importFromCSV(userId: string, csvData: string): Promise<{ imported: number; errors: number }> {
   const userTimezone = await getUserTimezone(userId)
   let imported = 0
   let errors = 0
 
   try {
+
     const rows = csvData.split("\n")
     const headers = rows[0].split(",")
+
 
     const getColumnIndex = (name: string) => {
       const index = headers.findIndex((h) => h.toLowerCase().includes(name.toLowerCase()))
@@ -764,20 +884,25 @@ export async function importFromCSV(userId: string, csvData: string): Promise<{ 
     const locationIndex = getColumnIndex("location")
     const categoriesIndex = getColumnIndex("categories")
 
+
     if (subjectIndex === null || startDateIndex === null) {
       throw new Error("CSV must contain at least Subject/Title and Start Date columns")
     }
+
 
     for (let i = 1; i < rows.length; i++) {
       if (!rows[i].trim()) continue
 
       try {
+
         const row = rows[i].split(",")
+
 
         const parseField = (index: number | null) => {
           if (index === null || index >= row.length) return ""
 
           let value = row[index].trim()
+
 
           if (value.startsWith('"') && value.endsWith('"')) {
             value = value.substring(1, value.length - 1).replace(/""/g, '"')
@@ -785,6 +910,7 @@ export async function importFromCSV(userId: string, csvData: string): Promise<{ 
 
           return value
         }
+
 
         const title = parseField(subjectIndex)
         const startDateStr = parseField(startDateIndex)
@@ -803,12 +929,16 @@ export async function importFromCSV(userId: string, csvData: string): Promise<{ 
         const location = locationIndex !== null ? parseField(locationIndex) : ""
         const categoriesStr = categoriesIndex !== null ? parseField(categoriesIndex) : ""
 
+
         const startDate = parseISO(`${startDateStr}${startTimeStr ? `T${startTimeStr}` : "T00:00:00"}`)
         const endDate = parseISO(`${endDateStr}${endTimeStr ? `T${endTimeStr}` : "T23:59:59"}`)
 
+
         const allDay = allDayStr === "true" || allDayStr === "yes" || allDayStr === "1" || !startTimeStr
 
+
         const categories = categoriesStr ? categoriesStr.split(",").map((c) => c.trim()) : []
+
 
         const event: CalendarEvent = {
           id: `imported_${uuidv4()}`,
@@ -824,6 +954,7 @@ export async function importFromCSV(userId: string, csvData: string): Promise<{ 
           categories: categories.length > 0 ? categories : undefined,
         }
 
+
         await createEvent(event)
         imported++
       } catch (error) {
@@ -837,4 +968,116 @@ export async function importFromCSV(userId: string, csvData: string): Promise<{ 
     console.error("Error parsing CSV data:", error)
     return { imported, errors: 1 }
   }
+}
+
+
+export async function getUserCategories(userId: string): Promise<string[]> {
+
+  const events = (await kv.zrange(`events:${userId}`, 0, -1)) as CalendarEvent[]
+
+
+  const categoriesSet = new Set<string>()
+
+  events.forEach((event) => {
+    if (event.categories && event.categories.length > 0) {
+      event.categories.forEach((category) => {
+        categoriesSet.add(category)
+      })
+    }
+  })
+
+  return Array.from(categoriesSet).sort()
+}
+
+
+export async function getSharedEvents(userId: string, start: Date, end: Date): Promise<CalendarEvent[]> {
+
+  const sharedEvents = (await kv.zrange(`shared_events:${userId}`, 0, -1)) as CalendarEvent[]
+
+
+  const startTimestamp = start.getTime()
+  const endTimestamp = end.getTime()
+
+  return sharedEvents.filter((event) => {
+    const eventStart = new Date(event.start).getTime()
+    const eventEnd = new Date(event.end).getTime()
+
+    return (
+      (eventStart >= startTimestamp && eventStart <= endTimestamp) ||
+      (eventEnd >= startTimestamp && eventEnd <= endTimestamp) ||
+      (eventStart <= startTimestamp && eventEnd >= endTimestamp)
+    )
+  })
+}
+
+
+export async function syncWithGoogleCalendar(userId: string): Promise<{ success: boolean; message: string }> {
+  try {
+
+    const userData = await kv.hgetall(`user:${userId}`)
+
+    if (!userData?.provider || userData.provider !== "google" || !userData.accessToken || !userData.refreshToken) {
+      return {
+        success: false,
+        message: "Google Calendar is not connected. Please connect your Google account first.",
+      }
+    }
+
+
+    const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const end = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+
+
+    const googleEvents = await getGoogleCalendarEvents(
+      userId,
+      userData.accessToken as string,
+      userData.refreshToken as string,
+      userData.expiresAt as number,
+      start,
+      end,
+    )
+
+
+    const localEvents = (await kv.zrange(`events:${userId}`, 0, -1)) as CalendarEvent[]
+
+
+    const nonGoogleEvents = localEvents.filter((event) => event.source !== "google")
+
+
+    let created = 0
+    for (const event of nonGoogleEvents) {
+      try {
+        await createGoogleCalendarEvent(
+          userId,
+          userData.accessToken as string,
+          userData.refreshToken as string,
+          userData.expiresAt as number,
+          event,
+        )
+        created++
+      } catch (error) {
+        console.error("Error creating event in Google Calendar:", error)
+      }
+    }
+
+
+    await kv.hset(`user:${userId}`, { lastGoogleSync: Date.now() })
+
+    return {
+      success: true,
+      message: `Sync completed successfully. ${created} local events were added to Google Calendar.`,
+    }
+  } catch (error) {
+    console.error("Error syncing with Google Calendar:", error)
+    return {
+      success: false,
+      message: "An error occurred while syncing with Google Calendar. Please try again later.",
+    }
+  }
+}
+
+
+export async function hasGoogleCalendarConnected(userId: string): Promise<boolean> {
+  const userData = await kv.hgetall(`user:${userId}`)
+  return !!(userData?.provider === "google" && userData?.accessToken && userData?.refreshToken)
 }
