@@ -62,7 +62,6 @@ export function SettingsForm({ initialPreferences }: SettingsFormProps) {
     try {
       await saveUserPreferences(session.user.sub, values)
 
-      // Update theme when user changes it in settings
       setTheme(values.theme)
 
       toast({
@@ -100,7 +99,7 @@ export function SettingsForm({ initialPreferences }: SettingsFormProps) {
                       <Select
                         onValueChange={(value) => {
                           field.onChange(value)
-                          setTheme(value) // Update theme immediately when changed
+                          setTheme(value) 
                         }}
                         defaultValue={field.value}
                       >
