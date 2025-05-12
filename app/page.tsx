@@ -7,7 +7,6 @@ import { CalendarIcon, ArrowRightIcon, CheckIcon, ExternalLinkIcon, MenuIcon, Gi
 import { ThemeToggle } from "@/components/theme-toggle"
 import { motion } from "framer-motion"
 
-// Animation variants
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
   visible: {
@@ -45,10 +44,8 @@ const scaleIn = {
   },
 }
 
-// Add this scroll handling function at the top of the component, after the animation variants
 
 export default function Home() {
-  // Add this function to handle smooth scrolling to sections
   const handleScrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {
     e.preventDefault()
     const section = document.getElementById(sectionId)
@@ -59,10 +56,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
-      {/* Decorative background elements */}
       <div className="fixed inset-0 noise-filter pointer-events-none opacity-20"></div>
 
-      {/* Header */}
       <motion.header
         className="py-6 relative z-10"
         initial={{ opacity: 0, y: -20 }}
@@ -77,7 +72,6 @@ export default function Home() {
             <span className="text-xl font-bold tracking-tight">Zero</span>
           </div>
 
-          {/* Update the navigation links to use the scroll function */}
           <nav className="hidden md:flex items-center gap-8">
             <Link
               href="#features"
@@ -446,7 +440,7 @@ export default function Home() {
                   <ArrowRightIcon className="h-5 w-5 transition-transform group-hover:translate-x-1" />
                 </Link>
                 <Link
-                  href="https://github.com/x1xhlol/zero-calendar"
+                  href="https://github.com/Zero-Calendar/zero-calendar"
                   target="_blank"
                   className="neo-brutalism-black px-10 py-4 rounded-md text-lg font-medium inline-flex items-center gap-2 group"
                 >
@@ -517,7 +511,7 @@ export default function Home() {
               <ul className="space-y-2">
                 <li>
                   <Link
-                    href="https://github.com/x1xhlol/zero-calendar"
+                    href="https://github.com/Zero-Calendar/zero-calendar"
                     target="_blank"
                     className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1"
                   >
@@ -549,7 +543,7 @@ export default function Home() {
 
             <div className="flex gap-6">
               <a
-                href="https://github.com/x1xhlol/zero-calendar"
+                href="https://github.com/Zero-Calendar/zero-calendar"
                 target="_blank"
                 className="text-gray-400 hover:text-white transition-colors"
                 rel="noreferrer"
