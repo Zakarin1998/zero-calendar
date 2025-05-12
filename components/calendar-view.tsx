@@ -67,7 +67,6 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
     const daysInMonth = []
     const startingDayOfWeek = firstDay.getDay()
 
-    // Add days from previous month
     for (let i = 0; i < startingDayOfWeek; i++) {
       const prevMonthDay = new Date(year, month, -i)
       daysInMonth.unshift({
@@ -77,7 +76,6 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
       })
     }
 
-    // Add days from current month
     for (let i = 1; i <= lastDay.getDate(); i++) {
       const currentDate = new Date(year, month, i)
       const dayEvents = filteredEvents.filter((event) => {
@@ -92,8 +90,7 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
       })
     }
 
-    // Add days from next month to complete the grid
-    const remainingDays = 42 - daysInMonth.length // 6 rows of 7 days
+    const remainingDays = 42 - daysInMonth.length 
     for (let i = 1; i <= remainingDays; i++) {
       const nextMonthDay = new Date(year, month + 1, i)
       daysInMonth.push({
@@ -124,7 +121,6 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
   }
 
   const handleAIToolExecution = async (result: any) => {
-    // Refresh events after AI makes changes
     if (session?.user?.id) {
       const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
       const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
@@ -158,7 +154,6 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
     router.push("/settings")
   }, [router])
 
-  // Define keyboard shortcuts
   const shortcuts: ShortcutAction[] = [
     { key: "?", description: "Show keyboard shortcuts", action: () => setShowShortcutsDialog(true) },
     { key: "t", description: "Go to today", action: handleToday },
@@ -182,7 +177,6 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
     },
   ]
 
-  // Use the keyboard shortcuts hook
   const { getShortcutsList } = useKeyboardShortcuts(shortcuts)
 
   const daysInMonth = getDaysInMonth(currentDate)
