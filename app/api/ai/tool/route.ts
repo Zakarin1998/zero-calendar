@@ -1,27 +1,27 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
+import { type NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { executeAIToolCall } from "@/lib/ai"
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-
     if (!session?.user?.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { tool, args } = await request.json()
+    const body = await req.json()
+    const { tool, args } = body
 
-    if (!tool) {
-      return NextResponse.json({ message: "Tool name is required" }, { status: 400 })
+    if (!tool || !args) {
+      return NextResponse.json({ error: "Missing tool or args" }, { status: 400 })
     }
 
-    const result = await executeAIToolCall(session.user.id, tool, args || [])
+    const result = await executeAIToolCall(session.user.id, tool, args)
 
     return NextResponse.json({ result })
-  } catch (error: any) {
-    console.error("AI tool execution error:", error)
-    return NextResponse.json({ message: error.message || "Something went wrong" }, { status: 500 })
+  } catch (error) {
+    console.error("Error in AI tool API:", error)
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
   }
 }
