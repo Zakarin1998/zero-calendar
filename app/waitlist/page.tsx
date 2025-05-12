@@ -74,38 +74,29 @@ export default function WaitlistPage() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col">
-      {/* Enhanced animated background with improved gradients */}
       <div className="fixed inset-0 z-0 overflow-hidden">
-        {/* Main gradient background */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#111111] to-[#0a0a0a]"></div>
 
-        {/* Radial gradients for depth */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(75,0,130,0.08),transparent_50%)]"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_60%,rgba(128,0,128,0.05),transparent_50%)]"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_40%_80%,rgba(75,0,75,0.07),transparent_50%)]"></div>
 
-        {/* Animated gradient orbs - using purple tones instead of blue */}
         <div className="absolute top-1/4 left-1/4 w-[40vw] h-[40vw] rounded-full bg-gradient-to-br from-purple-900/5 to-fuchsia-900/5 blur-3xl animate-pulse-slow"></div>
         <div
           className="absolute bottom-1/4 right-1/3 w-[35vw] h-[35vw] rounded-full bg-gradient-to-br from-violet-900/5 to-purple-900/5 blur-3xl animate-pulse-slow"
           style={{ animationDelay: "2s", animationDuration: "8s" }}
         ></div>
 
-        {/* Subtle noise texture */}
         <div className="absolute inset-0 noise-filter opacity-20"></div>
 
-        {/* Grid pattern overlay */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]"></div>
 
-        {/* Subtle vignette effect */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_60%,rgba(0,0,0,0.4))]"></div>
 
-        {/* Top and bottom borders */}
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-700/20 to-transparent"></div>
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-700/20 to-transparent"></div>
       </div>
 
-      {/* Header */}
       <header className="py-6 relative z-10">
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex items-center justify-between">
@@ -122,7 +113,6 @@ export default function WaitlistPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-6 relative z-10">
         <div className="max-w-2xl mx-auto w-full">
           <motion.div
@@ -145,7 +135,6 @@ export default function WaitlistPage() {
               privacy-focused, and designed to give you back control of your most valuable asset—time.
             </p>
 
-            {/* Enhanced waitlist form */}
             <motion.div
               className="mb-8 max-w-md mx-auto backdrop-blur-sm p-8 rounded-xl border border-white/10 bg-black/30"
               initial={{ opacity: 0, scale: 0.95 }}
@@ -219,7 +208,6 @@ export default function WaitlistPage() {
               )}
             </motion.div>
 
-            {/* Enhanced feature cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
               <motion.div
                 className="feature-card backdrop-blur-sm p-6 flex flex-col items-center !bg-black/30 border border-white/10 rounded-xl"
@@ -270,7 +258,6 @@ export default function WaitlistPage() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="py-6 relative z-10">
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row justify-center items-center gap-4 border-t border-white/10 pt-6">
