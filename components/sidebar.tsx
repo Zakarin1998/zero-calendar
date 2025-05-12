@@ -13,9 +13,12 @@ import {
   UsersIcon,
   PlusIcon,
   ChevronDownIcon,
+  LockIcon,
 } from "lucide-react"
 import { ChatPanel } from "./chat-panel"
 import { cn } from "@/lib/utils"
+import { Badge } from "./ui/badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip"
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
@@ -88,8 +91,12 @@ export function Sidebar() {
                     </div>
                   </div>
                   <div className="ml-2 py-2 px-2">
-                    <div className="flex items-center">
+                    <div className="flex items-center gap-2">
+                      <LockIcon className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm text-muted-foreground italic">Coming soon</span>
+                      <Badge variant="outline" className="text-xs bg-muted text-muted-foreground ml-1">
+                        Beta
+                      </Badge>
                     </div>
                   </div>
                 </div>
@@ -110,8 +117,19 @@ export function Sidebar() {
                 <div className="h-3 w-3 rounded-full bg-green-500" />
                 <div className="h-3 w-3 rounded-full bg-purple-500" />
                 <Separator className="w-8" />
-                <span className="text-xs text-muted-foreground mt-2">Shared</span>
-                <span className="text-xs text-muted-foreground italic">Soon</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex flex-col items-center gap-1">
+                        <LockIcon className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Soon</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Shared calendars coming soon</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             )}
           </div>
