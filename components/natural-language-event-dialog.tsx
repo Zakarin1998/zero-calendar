@@ -37,7 +37,6 @@ export function NaturalLanguageEventDialog({ open, onOpenChange, onEventCreated 
 
     setIsProcessing(true)
     try {
-      // Use Groq to parse the natural language input
       const parsedEventData = await parseWithGroq(input, session.user.id)
       setParsedEvent(parsedEventData)
       setStep("confirm")
@@ -71,10 +70,10 @@ export function NaturalLanguageEventDialog({ open, onOpenChange, onEventCreated 
           - endType: "never", "after", or "on"
           - endAfter: Number of occurrences (if endType is "after")
           - endOn: ISO string for end date (if endType is "on")
-        
+       
         Use the current date (${new Date().toISOString()}) as reference for relative dates like "tomorrow", "next week", etc.
         If no specific time is mentioned, use 9:00 AM as the default start time and make the event 1 hour long.
-        
+       
         Input: ${input}
       `
 
@@ -114,7 +113,6 @@ export function NaturalLanguageEventDialog({ open, onOpenChange, onEventCreated 
       })
       if (onEventCreated) onEventCreated()
       onOpenChange(false)
-      // Reset state
       setInput("")
       setParsedEvent(null)
       setStep("input")
@@ -139,7 +137,6 @@ export function NaturalLanguageEventDialog({ open, onOpenChange, onEventCreated 
     }
   }
 
-  // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleString(undefined, {
