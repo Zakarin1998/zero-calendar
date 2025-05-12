@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -12,12 +12,16 @@ import { ChatPanel } from "./chat-panel"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { useKeyboardShortcuts, type ShortcutAction } from "@/hooks/use-keyboard-shortcuts"
+import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog"
+import { useRouter } from "next/navigation"
 
 interface CalendarViewProps {
   initialEvents: CalendarEvent[]
 }
 
 export function CalendarView({ initialEvents }: CalendarViewProps) {
+  const router = useRouter()
   const { data: session } = useSession()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents)
@@ -27,6 +31,7 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filteredEvents, setFilteredEvents] = useState<CalendarEvent[]>(events)
+  const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -101,17 +106,17 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
     return daysInMonth
   }
 
-  const handlePrevMonth = () => {
+  const handlePrevMonth = useCallback(() => {
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
-  }
+  }, [])
 
-  const handleNextMonth = () => {
+  const handleNextMonth = useCallback(() => {
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
-  }
+  }, [])
 
-  const handleToday = () => {
+  const handleToday = useCallback(() => {
     setCurrentDate(new Date())
-  }
+  }, [])
 
   const handleEventClick = (event: CalendarEvent) => {
     setSelectedEvent(event)
@@ -128,6 +133,57 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
       setEvents(refreshedEvents)
     }
   }
+
+  const createNewEvent = useCallback(() => {
+    setSelectedEvent(null)
+    setShowEventDialog(true)
+  }, [])
+
+  const toggleAIPanel = useCallback(() => {
+    setShowChatPanel((prev) => !prev)
+  }, [])
+
+  const toggleView = useCallback((newView: "month" | "week" | "day") => {
+    setView(newView)
+  }, [])
+
+  const focusSearch = useCallback(() => {
+    const searchInput = document.querySelector('input[placeholder="Search events..."]') as HTMLInputElement
+    if (searchInput) {
+      searchInput.focus()
+    }
+  }, [])
+
+  const navigateToSettings = useCallback(() => {
+    router.push("/settings")
+  }, [router])
+
+  // Define keyboard shortcuts
+  const shortcuts: ShortcutAction[] = [
+    { key: "?", description: "Show keyboard shortcuts", action: () => setShowShortcutsDialog(true) },
+    { key: "t", description: "Go to today", action: handleToday },
+    { key: "ArrowLeft", description: "Navigate to previous month", action: handlePrevMonth },
+    { key: "ArrowRight", description: "Navigate to next month", action: handleNextMonth },
+    { key: "n", description: "Create new event", action: createNewEvent },
+    { key: "a", description: "Toggle AI assistant", action: toggleAIPanel },
+    { key: "m", description: "Switch to month view", action: () => toggleView("month") },
+    { key: "w", description: "Switch to week view", action: () => toggleView("week") },
+    { key: "d", description: "Switch to day view", action: () => toggleView("day") },
+    { key: "/", description: "Focus search", action: focusSearch },
+    { key: "s", description: "Go to settings", action: navigateToSettings },
+    {
+      key: "Escape",
+      description: "Close dialogs",
+      action: () => {
+        if (showEventDialog) setShowEventDialog(false)
+        if (showChatPanel) setShowChatPanel(false)
+        if (showShortcutsDialog) setShowShortcutsDialog(false)
+      },
+    },
+  ]
+
+  // Use the keyboard shortcuts hook
+  const { getShortcutsList } = useKeyboardShortcuts(shortcuts)
 
   const daysInMonth = getDaysInMonth(currentDate)
   const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -212,12 +268,8 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
           <Button variant="ghost" size="icon" className="rounded-lg h-9 w-9 bg-mono-100 dark:bg-mono-800">
             <FilterIcon className="h-4 w-4" />
           </Button>
-          <Button
-            variant="default"
-            size="sm"
-            className="rounded-lg h-9 gap-1 shadow-soft"
-            onClick={() => setShowEventDialog(true)}
-          >
+          <KeyboardShortcutsDialog shortcuts={getShortcutsList()} />
+          <Button variant="default" size="sm" className="rounded-lg h-9 gap-1 shadow-soft" onClick={createNewEvent}>
             <PlusIcon className="h-4 w-4" />
             <span>Event</span>
           </Button>
@@ -225,7 +277,7 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
             variant="ghost"
             size="sm"
             className="rounded-lg h-9 gap-1 bg-mono-100 dark:bg-mono-800"
-            onClick={() => setShowChatPanel(true)}
+            onClick={toggleAIPanel}
           >
             <ZapIcon className="h-4 w-4" />
             <span>AI</span>
@@ -312,6 +364,8 @@ export function CalendarView({ initialEvents }: CalendarViewProps) {
           <ZapIcon className="h-5 w-5" />
         </Button>
       </div>
+
+      <KeyboardShortcutsDialog shortcuts={getShortcutsList()} />
     </div>
   )
 }
