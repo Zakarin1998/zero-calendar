@@ -10,8 +10,7 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "Zero Calendar | AI-Powered Scheduling",
   description:
-    "Zero is an AI-native calendar that manages your schedule intelligently, giving you more time for what matters.",
-    generator: 'v0.dev'
+    "Zero is an AI-native calendar that manages your schedule intelligently, giving you more time for what matters."
 }
 
 export default function RootLayout({
