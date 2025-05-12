@@ -25,14 +25,13 @@ export function ChatPanel({ open, onOpenChange, onToolExecution }: ChatPanelProp
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hi! I'm your calendar assistant. How can I help you today?",
+      content: "Hi! I'm Zero. How can I help you today?",
     },
   ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Load messages from localStorage on component mount
   useEffect(() => {
     const savedMessages = localStorage.getItem("chatMessages")
     if (savedMessages) {
@@ -47,10 +46,8 @@ export function ChatPanel({ open, onOpenChange, onToolExecution }: ChatPanelProp
     }
   }, [])
 
-  // Save messages to localStorage whenever they change
   useEffect(() => {
     if (messages.length > 1) {
-      // Only save if we have more than the initial greeting
       localStorage.setItem("chatMessages", JSON.stringify(messages))
     }
   }, [messages])
@@ -63,9 +60,7 @@ export function ChatPanel({ open, onOpenChange, onToolExecution }: ChatPanelProp
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  // Generate conversation history string for context
   const getConversationHistory = () => {
-    // Limit to last 10 messages for context window size
     const recentMessages = messages.slice(-10)
     return recentMessages.map((msg) => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`).join("\n\n")
   }
@@ -77,25 +72,19 @@ export function ChatPanel({ open, onOpenChange, onToolExecution }: ChatPanelProp
     const userMessage = input.trim()
     setInput("")
 
-    // Add user message to chat
     setMessages((prev) => [...prev, { role: "user", content: userMessage }])
 
-    // Start loading state
     setIsLoading(true)
 
-    // Add an empty assistant message that we'll update as we receive chunks
     setMessages((prev) => [...prev, { role: "assistant", content: "" }])
 
     try {
-      // Get conversation history for context
       const conversationHistory = getConversationHistory()
 
-      // Stream the response
       await streamCalendarQuery(
         userMessage,
         session.user.id as string,
         (chunk) => {
-          // Update the last message with the new chunk
           setMessages((prev) => {
             const newMessages = [...prev]
             const lastMessage = newMessages[newMessages.length - 1]
@@ -108,13 +97,11 @@ export function ChatPanel({ open, onOpenChange, onToolExecution }: ChatPanelProp
         conversationHistory,
       )
 
-      // If there's a tool execution callback, call it
       if (onToolExecution) {
         onToolExecution({ success: true })
       }
     } catch (error) {
       console.error("Error streaming response:", error)
-      // Update the last message with an error
       setMessages((prev) => {
         const newMessages = [...prev]
         const lastMessage = newMessages[newMessages.length - 1]
@@ -132,7 +119,7 @@ export function ChatPanel({ open, onOpenChange, onToolExecution }: ChatPanelProp
     setMessages([
       {
         role: "assistant",
-        content: "Hi! I'm your calendar assistant. How can I help you today?",
+        content: "Hi! I'm Zero. How can I help you today?",
       },
     ])
     localStorage.removeItem("chatMessages")
