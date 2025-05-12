@@ -86,18 +86,10 @@ export function Sidebar() {
                       <ChevronDownIcon className="h-4 w-4 mr-1" />
                       Shared Calendars
                     </div>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      <PlusIcon className="h-4 w-4" />
-                    </Button>
                   </div>
-                  <div className="space-y-1 ml-2">
-                    <div className="flex items-center py-1 px-2 rounded-md hover:bg-muted cursor-pointer">
-                      <span className="mr-2 h-3 w-3 rounded-full bg-yellow-500" />
-                      <span className="text-sm">Team</span>
-                    </div>
-                    <div className="flex items-center py-1 px-2 rounded-md hover:bg-muted cursor-pointer">
-                      <span className="mr-2 h-3 w-3 rounded-full bg-red-500" />
-                      <span className="text-sm">Holidays</span>
+                  <div className="ml-2 py-2 px-2">
+                    <div className="flex items-center">
+                      <span className="text-sm text-muted-foreground italic">Coming soon</span>
                     </div>
                   </div>
                 </div>
@@ -118,8 +110,8 @@ export function Sidebar() {
                 <div className="h-3 w-3 rounded-full bg-green-500" />
                 <div className="h-3 w-3 rounded-full bg-purple-500" />
                 <Separator className="w-8" />
-                <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                <div className="h-3 w-3 rounded-full bg-red-500" />
+                <span className="text-xs text-muted-foreground mt-2">Shared</span>
+                <span className="text-xs text-muted-foreground italic">Soon</span>
               </div>
             )}
           </div>
