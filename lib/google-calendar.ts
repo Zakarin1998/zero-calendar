@@ -3,9 +3,8 @@ import type { CalendarEvent } from "@/lib/calendar"
 import { getUserTimezone } from "@/lib/auth"
 
 const GOOGLE_CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
-const DEFAULT_CALENDAR_ID = "primary" // Use the user's primary calendar by default
+const DEFAULT_CALENDAR_ID = "primary"
 
-// Interface for Google Calendar event
 interface GoogleCalendarEvent {
   id: string
   summary: string
@@ -33,22 +32,20 @@ interface GoogleCalendarEvent {
   }
 }
 
-// Map color IDs to our color scheme
 const colorMap: Record<string, string> = {
-  "1": "#3b82f6", // Blue (default)
-  "2": "#10b981", // Green
-  "3": "#ef4444", // Red
-  "4": "#f59e0b", // Yellow
-  "5": "#8b5cf6", // Purple
-  "6": "#ec4899", // Pink
-  "7": "#6366f1", // Indigo
-  "8": "#14b8a6", // Teal
-  "9": "#f97316", // Orange
-  "10": "#84cc16", // Lime
-  "11": "#06b6d4", // Cyan
+  "1": "#3b82f6",
+  "2": "#10b981",
+  "3": "#ef4444",
+  "4": "#f59e0b",
+  "5": "#8b5cf6",
+  "6": "#ec4899",
+  "7": "#6366f1",
+  "8": "#14b8a6",
+  "9": "#f97316",
+  "10": "#84cc16",
+  "11": "#06b6d4",
 }
 
-// Reverse color map for creating events
 const reverseColorMap: Record<string, string> = Object.entries(colorMap).reduce(
   (acc, [key, value]) => {
     acc[value] = key
@@ -57,20 +54,14 @@ const reverseColorMap: Record<string, string> = Object.entries(colorMap).reduce(
   {} as Record<string, string>,
 )
 
-/**
- * Helper function to refresh the access token if needed
- */
 async function refreshAccessTokenIfNeeded(userId: string, refreshToken: string, expiresAt: number): Promise<string> {
-  // Check if token is expired or about to expire (within 5 minutes)
   const isExpired = Date.now() >= (expiresAt - 300) * 1000
 
   if (!isExpired) {
-    // Get the current access token from the user's session
     const userData = await kv.hgetall(`user:${userId}`)
     return userData?.accessToken as string
   }
 
-  // Token is expired, refresh it
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: {
@@ -90,7 +81,6 @@ async function refreshAccessTokenIfNeeded(userId: string, refreshToken: string, 
 
   const data = await response.json()
 
-  // Update the user's session with the new token
   await kv.hset(`user:${userId}`, {
     accessToken: data.access_token,
     expiresAt: Math.floor(Date.now() / 1000) + data.expires_in,
@@ -99,9 +89,6 @@ async function refreshAccessTokenIfNeeded(userId: string, refreshToken: string, 
   return data.access_token
 }
 
-/**
- * Convert Google Calendar event to our CalendarEvent format
- */
 function convertGoogleEventToCalendarEvent(googleEvent: GoogleCalendarEvent, userId: string): CalendarEvent {
   return {
     id: `google_${googleEvent.id}`,
@@ -113,17 +100,13 @@ function convertGoogleEventToCalendarEvent(googleEvent: GoogleCalendarEvent, use
     color: googleEvent.colorId ? colorMap[googleEvent.colorId] || "#3b82f6" : "#3b82f6",
     userId,
     source: "google",
-    // Store the timezone from Google Calendar
     timezone: googleEvent.start.timeZone || "UTC",
   }
 }
 
-// Update the convertCalendarEventToGoogleEvent function to use the user's timezone
 async function convertCalendarEventToGoogleEvent(event: CalendarEvent): Promise<Partial<GoogleCalendarEvent>> {
-  // Extract the original Google event ID if it exists
   const googleEventId = event.id.startsWith("google_") ? event.id.substring(7) : undefined
 
-  // Get the user's timezone
   const userTimezone = await getUserTimezone(event.userId)
 
   return {
@@ -132,18 +115,17 @@ async function convertCalendarEventToGoogleEvent(event: CalendarEvent): Promise<
     description: event.description,
     start: {
       dateTime: event.start,
-      timeZone: userTimezone, // Use the user's timezone
+      timeZone: userTimezone,
     },
     end: {
       dateTime: event.end,
-      timeZone: userTimezone, // Use the user's timezone
+      timeZone: userTimezone,
     },
     location: event.location,
     colorId: event.color ? reverseColorMap[event.color] || "1" : "1",
   }
 }
 
-// Update the getGoogleCalendarEvents function to store events in the database
 export async function getGoogleCalendarEvents(
   userId: string,
   accessToken: string,
@@ -154,17 +136,13 @@ export async function getGoogleCalendarEvents(
   calendarId: string = DEFAULT_CALENDAR_ID,
 ): Promise<CalendarEvent[]> {
   try {
-    // Refresh token if needed
     const token = await refreshAccessTokenIfNeeded(userId, refreshToken, expiresAt)
 
-    // Get the user's timezone
     const userTimezone = await getUserTimezone(userId)
 
-    // Format dates for Google Calendar API
     const timeMin = startDate.toISOString()
     const timeMax = endDate.toISOString()
 
-    // Fetch events from Google Calendar
     const response = await fetch(
       `${GOOGLE_CALENDAR_API_BASE}/calendars/${encodeURIComponent(
         calendarId,
@@ -182,10 +160,8 @@ export async function getGoogleCalendarEvents(
 
     const data = await response.json()
 
-    // Convert Google Calendar events to our format
     const events = data.items.map((item: GoogleCalendarEvent) => convertGoogleEventToCalendarEvent(item, userId))
 
-    // Store the events in the database for offline access
     await storeGoogleEventsInDatabase(userId, events)
 
     return events
@@ -195,34 +171,27 @@ export async function getGoogleCalendarEvents(
   }
 }
 
-// Add a function to store Google events in the database
 async function storeGoogleEventsInDatabase(userId: string, events: CalendarEvent[]): Promise<void> {
   try {
-    // Get existing Google events for this user
     const existingEvents = await kv.zrange(`google_events:${userId}`, 0, -1)
 
-    // Create a map of existing event IDs for quick lookup
     const existingEventIds = new Set()
     existingEvents.forEach((event: any) => {
       const parsed = typeof event === "string" ? JSON.parse(event) : event
       existingEventIds.add(parsed.id)
     })
 
-    // Add or update events in the database
     for (const event of events) {
-      // Skip if the event already exists (we'll update it later)
       if (existingEventIds.has(event.id)) {
         continue
       }
 
-      // Add the event to the database
       await kv.zadd(`google_events:${userId}`, {
         score: new Date(event.start).getTime(),
         member: JSON.stringify(event),
       })
     }
 
-    // Remove events that no longer exist in Google Calendar
     const currentEventIds = new Set(events.map((event) => event.id))
     for (const existingEvent of existingEvents) {
       const parsed = typeof existingEvent === "string" ? JSON.parse(existingEvent) : existingEvent
@@ -235,9 +204,6 @@ async function storeGoogleEventsInDatabase(userId: string, events: CalendarEvent
   }
 }
 
-/**
- * Create an event in Google Calendar
- */
 export async function createGoogleCalendarEvent(
   userId: string,
   accessToken: string,
@@ -266,7 +232,6 @@ export async function createGoogleCalendarEvent(
 
     const data = await response.json()
 
-    // Return the created event in our format
     return convertGoogleEventToCalendarEvent(data, userId)
   } catch (error) {
     console.error("Error creating Google Calendar event:", error)
@@ -274,9 +239,6 @@ export async function createGoogleCalendarEvent(
   }
 }
 
-/**
- * Update an event in Google Calendar
- */
 export async function updateGoogleCalendarEvent(
   userId: string,
   accessToken: string,
@@ -314,7 +276,6 @@ export async function updateGoogleCalendarEvent(
 
     const data = await response.json()
 
-    // Return the updated event in our format
     return convertGoogleEventToCalendarEvent(data, userId)
   } catch (error) {
     console.error("Error updating Google Calendar event:", error)
@@ -322,9 +283,6 @@ export async function updateGoogleCalendarEvent(
   }
 }
 
-/**
- * Delete an event from Google Calendar
- */
 export async function deleteGoogleCalendarEvent(
   userId: string,
   accessToken: string,
@@ -334,18 +292,14 @@ export async function deleteGoogleCalendarEvent(
   calendarId: string = DEFAULT_CALENDAR_ID,
 ): Promise<boolean> {
   try {
-    // Ensure this is a Google Calendar event
     if (!eventId.startsWith("google_")) {
       throw new Error("Not a Google Calendar event")
     }
 
-    // Extract the Google event ID
     const googleEventId = eventId.substring(7)
 
-    // Refresh token if needed
     const token = await refreshAccessTokenIfNeeded(userId, refreshToken, expiresAt)
 
-    // Delete event from Google Calendar
     const response = await fetch(
       `${GOOGLE_CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${googleEventId}`,
       {
@@ -363,9 +317,6 @@ export async function deleteGoogleCalendarEvent(
   }
 }
 
-/**
- * Get a list of the user's Google Calendars
- */
 export async function getGoogleCalendars(
   userId: string,
   accessToken: string,
@@ -398,7 +349,6 @@ export async function getGoogleCalendars(
     return []
   }
 }
-
 
 export async function hasGoogleCalendarConnected(userId: string): Promise<boolean> {
   try {
