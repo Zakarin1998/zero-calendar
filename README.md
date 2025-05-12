@@ -140,7 +140,7 @@ GOOGLE_CLIENT_SECRET=your_client_secret
 
 ### Keyboard Shortcuts
 
-Zero Calendar includes keyboard shortcuts for power users:
+Zero Calendar includes keyboard shortcuts:
 
 | Shortcut | Action |
 |----------|--------|
