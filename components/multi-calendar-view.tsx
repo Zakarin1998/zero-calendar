@@ -60,7 +60,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { NaturalLanguageEventDialog } from "./natural-language-event-dialog"
 
-// Define calendar types and their colors
 const CALENDAR_TYPES = {
   personal: { name: "Personal", color: "bg-blue-500" },
   work: { name: "Work", color: "bg-green-500" },
@@ -68,7 +67,6 @@ const CALENDAR_TYPES = {
   shared: { name: "Shared", color: "bg-yellow-500" },
 }
 
-// Define event category colors
 const CATEGORY_COLORS: Record<string, string> = {
   Work: "bg-green-500",
   Personal: "bg-blue-500",
@@ -109,7 +107,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
   const [sharedEvents, setSharedEvents] = useState<CalendarEvent[]>([])
   const [agendaRange, setAgendaRange] = useState<"day" | "week" | "month">("week")
 
-  // Fetch events when the date or view changes
   useEffect(() => {
     if (!session?.user?.id) return
 
@@ -118,14 +115,10 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
       try {
         let startDate: Date, endDate: Date
 
-        // Calculate date range based on current view
         if (view === "month") {
-          // Get first day of the month
           startDate = startOfMonth(currentDate)
-          // Get last day of the month
           endDate = endOfMonth(currentDate)
 
-          // Extend to include days from previous/next month that appear in the calendar grid
           const firstDayOfWeek = getDay(startDate)
           startDate = subDays(startDate, firstDayOfWeek)
 
@@ -149,27 +142,22 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
             endDate = endOfMonth(currentDate)
           }
         } else {
-          // day view
           startDate = new Date(currentDate)
           startDate.setHours(0, 0, 0, 0)
           endDate = new Date(currentDate)
           endDate.setHours(23, 59, 59, 999)
         }
 
-        // Fetch events for the date range
         const fetchedEvents = await getEvents(session.user.id, startDate, endDate)
         setEvents(fetchedEvents)
 
-        // Fetch shared events
         const fetchedSharedEvents = await getSharedEvents(session.user.id)
-        // Filter shared events to only include those in the current date range
         const filteredSharedEvents = fetchedSharedEvents.filter((event) => {
           const eventStart = parseISO(event.start)
           return isWithinInterval(eventStart, { start: startDate, end: endDate })
         })
         setSharedEvents(filteredSharedEvents)
 
-        // Fetch user categories
         const fetchedCategories = await getUserCategories(session.user.id)
         setCategories(fetchedCategories)
       } catch (error) {
@@ -182,15 +170,11 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
     fetchEvents()
   }, [currentDate, view, session, agendaRange])
 
-  // Filter events based on search query, selected categories, and visible calendars
   const filteredEvents = useMemo(() => {
-    // Combine regular events and shared events
     const allEvents = [...events, ...sharedEvents]
 
-    // Start with all events
     let filtered = allEvents
 
-    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(
@@ -201,14 +185,11 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
       )
     }
 
-    // Filter by selected categories
     if (selectedCategories.length > 0) {
       filtered = filtered.filter((event) => event.category && selectedCategories.includes(event.category))
     }
 
-    // Filter by visible calendars
     filtered = filtered.filter((event) => {
-      // Determine which calendar this event belongs to
       if (event.shared && visibleCalendars.shared) {
         return true
       }
@@ -225,14 +206,12 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
         return true
       }
 
-      // Default to personal calendar if no specific category
       return !event.category && !event.shared && visibleCalendars.personal
     })
 
     return filtered
   }, [events, sharedEvents, searchQuery, selectedCategories, visibleCalendars])
 
-  // Generate days for month view
   const daysInMonth = useMemo(() => {
     if (view !== "month") return []
 
@@ -241,19 +220,14 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
     const firstDay = new Date(year, month, 1)
     const lastDay = new Date(year, month + 1, 0)
 
-    // Get the first day of the week for the first day of the month
     const startingDayOfWeek = firstDay.getDay()
 
-    // Calculate the first day to display (might be from the previous month)
     const calendarStart = subDays(firstDay, startingDayOfWeek)
 
-    // We want to display 6 weeks (42 days) to ensure consistent calendar height
     const calendarEnd = addDays(calendarStart, 41)
 
-    // Generate all days in the interval
     const daysInterval = eachDayOfInterval({ start: calendarStart, end: calendarEnd })
 
-    // Map days to include their events
     return daysInterval.map((date) => {
       const dayEvents = filteredEvents.filter((event) => {
         const eventStart = new Date(event.start)
@@ -268,7 +242,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
     })
   }, [currentDate, filteredEvents, view])
 
-  // Generate days for week view
   const daysInWeek = useMemo(() => {
     if (view !== "week") return []
 
@@ -289,7 +262,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
     })
   }, [currentDate, filteredEvents, view])
 
-  // Get events for day view
   const eventsForDay = useMemo(() => {
     if (view !== "day") return []
 
@@ -299,7 +271,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
     })
   }, [currentDate, filteredEvents, view])
 
-  // Generate months for year view
   const monthsInYear = useMemo(() => {
     if (view !== "year") return []
 
@@ -311,16 +282,14 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
       const monthStart = startOfMonth(month)
       const monthEnd = endOfMonth(month)
 
-      // Get events for this month
       const monthEvents = filteredEvents.filter((event) => {
         const eventStart = new Date(event.start)
         return isWithinInterval(eventStart, { start: monthStart, end: monthEnd })
       })
 
-      // Get days for mini calendar
       const firstDayOfMonth = getDay(monthStart)
       const calendarStart = subDays(monthStart, firstDayOfMonth)
-      const daysToShow = 35 // 5 weeks
+      const daysToShow = 35
       const calendarEnd = addDays(calendarStart, daysToShow - 1)
 
       const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd }).map((date) => {
@@ -344,7 +313,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
     })
   }, [currentDate, filteredEvents, view])
 
-  // Get events for agenda view
   const eventsForAgenda = useMemo(() => {
     if (view !== "agenda") return []
 
@@ -361,13 +329,11 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
       endDate = endOfMonth(currentDate)
     }
 
-    // Get events in the date range
     const rangeEvents = filteredEvents.filter((event) => {
       const eventStart = new Date(event.start)
       return isWithinInterval(eventStart, { start: startDate, end: endDate })
     })
 
-    // Group events by date
     const eventsByDate: Record<string, CalendarEvent[]> = {}
 
     rangeEvents.forEach((event) => {
@@ -381,7 +347,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
       eventsByDate[dateKey].push(event)
     })
 
-    // Sort events within each day by start time
     Object.keys(eventsByDate).forEach((dateKey) => {
       eventsByDate[dateKey].sort((a, b) => {
         return new Date(a.start).getTime() - new Date(b.start).getTime()
@@ -395,7 +360,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
     }
   }, [currentDate, filteredEvents, view, agendaRange])
 
-  // Navigation handlers
   const handlePrevious = useCallback(() => {
     if (view === "month") {
       setCurrentDate((prev) => subMonths(prev, 1))
@@ -424,7 +388,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
     setCurrentDate(new Date())
   }, [])
 
-  // Event handlers
   const handleEventClick = useCallback((event: CalendarEvent) => {
     setSelectedEvent(event)
     setShowEventDialog(true)
@@ -441,7 +404,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
 
   const handleAIToolExecution = useCallback(
     async (result: any) => {
-      // Refresh events after AI makes changes
       if (session?.user?.id) {
         const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
         const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
@@ -453,7 +415,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
     [currentDate, session],
   )
 
-  // Calendar visibility toggles
   const toggleCalendarVisibility = useCallback((calendarKey: string) => {
     setVisibleCalendars((prev) => ({
       ...prev,
@@ -471,7 +432,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
     })
   }, [])
 
-  // Helper function to get event color based on category or source
   const getEventColor = useCallback((event: CalendarEvent) => {
     if (event.category && CATEGORY_COLORS[event.category]) {
       return CATEGORY_COLORS[event.category]
@@ -485,38 +445,36 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
       return CALENDAR_TYPES.personal.color
     }
 
-    // Default color
     return "bg-gray-500"
   }, [])
 
-  // Format title based on current view
   const viewTitle = useMemo(() => {
     if (view === "month") {
-      return format(currentDate, "MMMM yyyy")
+      return format(currentDate, "MMMM YYYY")
     } else if (view === "week") {
       const weekStart = startOfWeek(currentDate)
       const weekEnd = endOfWeek(currentDate)
       if (weekStart.getMonth() === weekEnd.getMonth()) {
-        return `${format(weekStart, "MMM d")} - ${format(weekEnd, "d, yyyy")}`
+        return `${format(weekStart, "MMM d")} - ${format(weekEnd, "d, YYYY")}`
       } else if (weekStart.getFullYear() === weekEnd.getFullYear()) {
-        return `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`
+        return `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, YYYY")}`
       } else {
-        return `${format(weekStart, "MMM d, yyyy")} - ${format(weekEnd, "MMM d, yyyy")}`
+        return `${format(weekStart, "MMM d, YYYY")} - ${format(weekEnd, "MMM d, YYYY")}`
       }
     } else if (view === "year") {
       return format(currentDate, "yyyy")
     } else if (view === "agenda") {
       if (agendaRange === "day") {
-        return format(currentDate, "EEEE, MMMM d, yyyy")
+        return format(currentDate, "EEEE, MMMM d, YYYY")
       } else if (agendaRange === "week") {
         const weekStart = startOfWeek(currentDate)
         const weekEnd = endOfWeek(currentDate)
-        return `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`
+        return `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, YYYY")}`
       } else {
-        return format(currentDate, "MMMM yyyy")
+        return format(currentDate, "MMMM YYYY")
       }
     } else {
-      return format(currentDate, "EEEE, MMMM d, yyyy")
+      return format(currentDate, "EEEE, MMMM d, YYYY")
     }
   }, [currentDate, view, agendaRange])
 
@@ -628,7 +586,7 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
                 <p>Toggle calendars</p>
               </TooltipContent>
             </Tooltip>
-          </TooltipProvider>
+          </Popover>
 
           <Popover>
             <PopoverTrigger asChild>
@@ -668,7 +626,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
       </div>
 
       <div className="flex gap-4">
-        {/* Calendar filter drawer */}
         {isCalendarDrawerOpen && (
           <Card className="w-64 flex-shrink-0 p-4 h-full">
             <div className="flex items-center justify-between mb-4">
@@ -735,7 +692,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
           </Card>
         )}
 
-        {/* Calendar View */}
         <Card className="rounded-xl border-mono-200 dark:border-mono-700 shadow-soft overflow-hidden flex-1">
           {isLoading && (
             <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
@@ -746,7 +702,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
             </div>
           )}
 
-          {/* Month View */}
           {view === "month" && (
             <>
               <div className="grid grid-cols-7 border-b border-mono-200 dark:border-mono-700 bg-mono-50 dark:bg-mono-900">
@@ -832,7 +787,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
             </>
           )}
 
-          {/* Week View */}
           {view === "week" && (
             <div className="flex flex-col h-[600px]">
               <div className="grid grid-cols-8 border-b border-mono-200 dark:border-mono-700">
@@ -870,7 +824,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
                       key={day.date.toISOString()}
                       className="relative border-r border-mono-200 dark:border-mono-700"
                     >
-                      {/* Hour grid lines */}
                       {Array.from({ length: 24 }).map((_, hour) => (
                         <div
                           key={hour}
@@ -878,20 +831,16 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
                         ></div>
                       ))}
 
-                      {/* Events for this day */}
                       {day.events.map((event) => {
                         const startDate = new Date(event.start)
                         const endDate = new Date(event.end)
 
-                        // Calculate position and height based on event time
                         const startHour = startDate.getHours() + startDate.getMinutes() / 60
                         const endHour = endDate.getHours() + endDate.getMinutes() / 60
                         const duration = endHour - startHour
 
-                        // Position from top (12px per hour)
                         const top = startHour * 12
-                        // Height (12px per hour)
-                        const height = Math.max(duration * 12, 16) // Minimum height of 16px
+                        const height = Math.max(duration * 12, 16)
 
                         return (
                           <div
@@ -919,12 +868,11 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
             </div>
           )}
 
-          {/* Day View */}
           {view === "day" && (
             <div className="flex flex-col h-[600px]">
               <div className="py-3 px-4 border-b border-mono-200 dark:border-mono-700 bg-mono-50 dark:bg-mono-900">
                 <div className="text-center font-medium">
-                  {format(currentDate, "EEEE, MMMM d, yyyy")}
+                  {format(currentDate, "EEEE, MMMM d, YYYY")}
                   {isSameDay(currentDate, new Date()) && (
                     <Badge className="ml-2 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Today</Badge>
                   )}
@@ -941,7 +889,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
                 </div>
 
                 <div className="flex-1 relative">
-                  {/* Hour grid lines */}
                   {Array.from({ length: 24 }).map((_, hour) => (
                     <div
                       key={hour}
@@ -949,20 +896,16 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
                     ></div>
                   ))}
 
-                  {/* Events for this day */}
                   {eventsForDay.map((event) => {
                     const startDate = new Date(event.start)
                     const endDate = new Date(event.end)
 
-                    // Calculate position and height based on event time
                     const startHour = startDate.getHours() + startDate.getMinutes() / 60
                     const endHour = endDate.getHours() + endDate.getMinutes() / 60
                     const duration = endHour - startHour
 
-                    // Position from top (12px per hour)
                     const top = startHour * 12
-                    // Height (12px per hour)
-                    const height = Math.max(duration * 12, 24) // Minimum height of 24px
+                    const height = Math.max(duration * 12, 24)
 
                     return (
                       <div
@@ -986,7 +929,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
                     )
                   })}
 
-                  {/* Current time indicator */}
                   {isSameDay(currentDate, new Date()) && (
                     <div
                       className="absolute left-0 right-0 border-t-2 border-red-500 z-10"
@@ -1002,7 +944,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
             </div>
           )}
 
-          {/* Year View */}
           {view === "year" && (
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {monthsInYear.map((monthData) => (
@@ -1064,7 +1005,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
             </div>
           )}
 
-          {/* Agenda View */}
           {view === "agenda" && (
             <div className="p-4">
               <div className="space-y-4">
@@ -1084,7 +1024,7 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
                                 "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300",
                             )}
                           >
-                            {format(date, "EEEE, MMMM d, yyyy")}
+                            {format(date, "EEEE, MMMM d, YYYY")}
                             {isSameDay(date, new Date()) && (
                               <Badge className="ml-2 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                                 Today
@@ -1167,7 +1107,6 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
         </Card>
       </div>
 
-      {/* Event Dialog */}
       <EventDialog
         open={showEventDialog}
         onOpenChange={setShowEventDialog}
@@ -1183,12 +1122,10 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
         }}
       />
 
-      {/* Natural Language Event Dialog */}
       <NaturalLanguageEventDialog
         open={showNaturalLanguageDialog}
         onOpenChange={setShowNaturalLanguageDialog}
         onEventCreated={() => {
-          // Refresh events after creating a new event
           if (session?.user?.id) {
             const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
             const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
@@ -1200,10 +1137,8 @@ export function MultiCalendarView({ initialEvents, initialCategories = [] }: Mul
         }}
       />
 
-      {/* AI Chat Panel */}
       <ChatPanel open={showChatPanel} onOpenChange={setShowChatPanel} onToolExecution={handleAIToolExecution} />
 
-      {/* Floating AI Button */}
       <div className="fixed bottom-6 right-6 z-50">
         <Button
           className="h-12 w-12 rounded-full shadow-glow bg-mono-900 text-mono-50 dark:bg-mono-50 dark:text-mono-900 hover:scale-105 transition-transform"
