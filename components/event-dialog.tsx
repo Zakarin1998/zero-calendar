@@ -1,5 +1,7 @@
 "use client"
 
+import { FormDescription } from "@/components/ui/form"
+
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useForm } from "react-hook-form"
@@ -14,11 +16,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { TrashIcon, MapPinIcon, ClockIcon, AlignLeftIcon, XIcon, CheckIcon } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import {
+  TrashIcon,
+  MapPinIcon,
+  ClockIcon,
+  AlignLeftIcon,
+  XIcon,
+  CheckIcon,
+  RepeatIcon,
+  BellIcon,
+  TagIcon,
+} from "lucide-react"
 import { type CalendarEvent, createEvent, updateEvent, deleteEvent } from "@/lib/calendar"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -31,6 +46,24 @@ const formSchema = z.object({
   location: z.string().optional(),
   color: z.string().default("#3b82f6"),
   timezone: z.string().optional(),
+  // Recurrence fields
+  isRecurring: z.boolean().default(false),
+  recurrenceType: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
+  recurrenceInterval: z.number().min(1).max(365).optional(),
+  recurrenceEndType: z.enum(["never", "after", "on"]).optional(),
+  recurrenceEndAfter: z.number().min(1).max(999).optional(),
+  recurrenceEndOn: z.string().optional(),
+  // Reminder fields
+  reminders: z
+    .array(
+      z.object({
+        time: z.number(),
+        unit: z.enum(["minutes", "hours", "days"]),
+      }),
+    )
+    .default([]),
+  // Category/Tag field
+  category: z.string().optional(),
 })
 
 interface EventDialogProps {
@@ -39,13 +72,23 @@ interface EventDialogProps {
   event?: CalendarEvent | null
   onEventUpdated?: (event: CalendarEvent) => void
   onEventDeleted?: (eventId: string) => void
+  categories?: string[]
 }
 
-export function EventDialog({ open, onOpenChange, event, onEventUpdated, onEventDeleted }: EventDialogProps) {
+export function EventDialog({
+  open,
+  onOpenChange,
+  event,
+  onEventUpdated,
+  onEventDeleted,
+  categories = [],
+}: EventDialogProps) {
   const { data: session } = useSession()
   const { toast } = useToast()
   const [isDeleting, setIsDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [activeTab, setActiveTab] = useState("basic")
+  const [customCategory, setCustomCategory] = useState("")
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -56,8 +99,20 @@ export function EventDialog({ open, onOpenChange, event, onEventUpdated, onEvent
       end: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
       location: "",
       color: "#3b82f6",
+      isRecurring: false,
+      recurrenceType: "weekly",
+      recurrenceInterval: 1,
+      recurrenceEndType: "never",
+      recurrenceEndAfter: 10,
+      recurrenceEndOn: new Date(Date.now() + 30 * 24 * 3600000).toISOString().slice(0, 10),
+      reminders: [{ time: 30, unit: "minutes" }],
+      category: "",
     },
   })
+
+  const isRecurring = form.watch("isRecurring")
+  const recurrenceEndType = form.watch("recurrenceEndType")
+  const selectedCategory = form.watch("category")
 
   useEffect(() => {
     if (event) {
@@ -68,6 +123,14 @@ export function EventDialog({ open, onOpenChange, event, onEventUpdated, onEvent
         end: new Date(event.end).toISOString().slice(0, 16),
         location: event.location || "",
         color: event.color || "#3b82f6",
+        isRecurring: event.recurrence ? true : false,
+        recurrenceType: event.recurrence?.type || "weekly",
+        recurrenceInterval: event.recurrence?.interval || 1,
+        recurrenceEndType: event.recurrence?.endType || "never",
+        recurrenceEndAfter: event.recurrence?.endAfter || 10,
+        recurrenceEndOn: event.recurrence?.endOn ? new Date(event.recurrence.endOn).toISOString().slice(0, 10) : "",
+        reminders: event.reminders || [{ time: 30, unit: "minutes" }],
+        category: event.category || "",
       })
     } else {
       form.reset({
@@ -77,6 +140,14 @@ export function EventDialog({ open, onOpenChange, event, onEventUpdated, onEvent
         end: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
         location: "",
         color: "#3b82f6",
+        isRecurring: false,
+        recurrenceType: "weekly",
+        recurrenceInterval: 1,
+        recurrenceEndType: "never",
+        recurrenceEndAfter: 10,
+        recurrenceEndOn: new Date(Date.now() + 30 * 24 * 3600000).toISOString().slice(0, 10),
+        reminders: [{ time: 30, unit: "minutes" }],
+        category: "",
       })
     }
 
@@ -92,6 +163,19 @@ export function EventDialog({ open, onOpenChange, event, onEventUpdated, onEvent
     form.setValue("timezone", userTimezone)
   }, [form])
 
+  const addReminder = () => {
+    const currentReminders = form.getValues("reminders") || []
+    form.setValue("reminders", [...currentReminders, { time: 15, unit: "minutes" }])
+  }
+
+  const removeReminder = (index: number) => {
+    const currentReminders = form.getValues("reminders") || []
+    form.setValue(
+      "reminders",
+      currentReminders.filter((_, i) => i !== index),
+    )
+  }
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!session?.user?.id) {
       toast({
@@ -103,6 +187,23 @@ export function EventDialog({ open, onOpenChange, event, onEventUpdated, onEvent
     }
 
     try {
+      // Process recurrence data
+      const recurrence = values.isRecurring
+        ? {
+            type: values.recurrenceType,
+            interval: values.recurrenceInterval,
+            endType: values.recurrenceEndType,
+            endAfter: values.recurrenceEndType === "after" ? values.recurrenceEndAfter : undefined,
+            endOn: values.recurrenceEndType === "on" ? values.recurrenceEndOn : undefined,
+          }
+        : undefined
+
+      // Handle custom category
+      let finalCategory = values.category
+      if (finalCategory === "custom" && customCategory) {
+        finalCategory = customCategory
+      }
+
       const eventData: CalendarEvent = {
         id: event?.id || `event_${Date.now()}`,
         title: values.title,
@@ -112,7 +213,10 @@ export function EventDialog({ open, onOpenChange, event, onEventUpdated, onEvent
         location: values.location,
         color: values.color,
         userId: session.user.id,
-        timezone: values.timezone || "UTC", // Include the timezone
+        timezone: values.timezone || "UTC",
+        recurrence,
+        reminders: values.reminders,
+        category: finalCategory,
       }
 
       if (event) {
@@ -187,225 +291,511 @@ export function EventDialog({ open, onOpenChange, event, onEventUpdated, onEvent
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 px-6">
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input
-                      placeholder="Event title"
-                      {...field}
-                      className="text-lg font-medium border-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-mono-400"
-                    />
-                  </FormControl>
-                  <FormMessage className="text-mono-500" />
-                </FormItem>
-              )}
-            />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <Tabs defaultValue="basic" value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid grid-cols-4 mb-4">
+                <TabsTrigger value="basic">Basic</TabsTrigger>
+                <TabsTrigger value="recurrence">Recurrence</TabsTrigger>
+                <TabsTrigger value="reminders">Reminders</TabsTrigger>
+                <TabsTrigger value="more">More</TabsTrigger>
+              </TabsList>
 
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
-                  <ClockIcon className="h-5 w-5" />
-                </div>
-                <div className="grid grid-cols-2 gap-3 flex-1">
-                  <FormField
-                    control={form.control}
-                    name="start"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input
-                            type="datetime-local"
-                            {...field}
-                            className="rounded-lg border-mono-200 dark:border-mono-700 h-9 text-sm focus-visible:ring-mono-400 dark:focus-visible:ring-mono-500"
-                          />
-                        </FormControl>
-                        <FormMessage className="text-mono-500" />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="end"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input
-                            type="datetime-local"
-                            {...field}
-                            className="rounded-lg border-mono-200 dark:border-mono-700 h-9 text-sm focus-visible:ring-mono-400 dark:focus-visible:ring-mono-500"
-                          />
-                        </FormControl>
-                        <FormMessage className="text-mono-500" />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
-                  <MapPinIcon className="h-5 w-5" />
-                </div>
+              <TabsContent value="basic" className="space-y-4 px-6">
                 <FormField
                   control={form.control}
-                  name="location"
+                  name="title"
                   render={({ field }) => (
-                    <FormItem className="flex-1">
+                    <FormItem>
                       <FormControl>
                         <Input
-                          placeholder="Add location"
+                          placeholder="Event title"
                           {...field}
-                          className="rounded-lg border-mono-200 dark:border-mono-700 h-9 text-sm focus-visible:ring-mono-400 dark:focus-visible:ring-mono-500"
+                          className="text-lg font-medium border-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-mono-400"
                         />
                       </FormControl>
                       <FormMessage className="text-mono-500" />
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <div className="flex items-start gap-3">
-                <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
-                  <AlignLeftIcon className="h-5 w-5" />
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
+                    <ClockIcon className="h-5 w-5" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 flex-1">
+                    <FormField
+                      control={form.control}
+                      name="start"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              type="datetime-local"
+                              {...field}
+                              className="rounded-lg border-mono-200 dark:border-mono-700 h-9 text-sm focus-visible:ring-mono-400 dark:focus-visible:ring-mono-500"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-mono-500" />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="end"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              type="datetime-local"
+                              {...field}
+                              className="rounded-lg border-mono-200 dark:border-mono-700 h-9 text-sm focus-visible:ring-mono-400 dark:focus-visible:ring-mono-500"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-mono-500" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormControl>
-                        <Textarea
-                          placeholder="Add a description"
-                          className="resize-none rounded-lg min-h-[100px] border-mono-200 dark:border-mono-700 focus-visible:ring-mono-400 dark:focus-visible:ring-mono-500"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage className="text-mono-500" />
-                    </FormItem>
-                  )}
-                />
-              </div>
 
-              <div className="flex items-start gap-3">
-                <div className="h-9 w-9 rounded-lg flex items-center justify-center overflow-hidden">
-                  <div
-                    className={cn(
-                      "w-full h-full",
-                      form.watch("color") === "#3b82f6" && "bg-mono-900 dark:bg-mono-100",
-                      form.watch("color") === "#10b981" && "bg-mono-700 dark:bg-mono-300",
-                      form.watch("color") === "#ef4444" && "bg-mono-500 dark:bg-mono-500",
-                      form.watch("color") === "#f59e0b" && "bg-mono-300 dark:bg-mono-700",
-                      form.watch("color") === "#8b5cf6" && "bg-mono-200 dark:bg-mono-800",
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
+                    <MapPinIcon className="h-5 w-5" />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormControl>
+                          <Input
+                            placeholder="Add location"
+                            {...field}
+                            className="rounded-lg border-mono-200 dark:border-mono-700 h-9 text-sm focus-visible:ring-mono-400 dark:focus-visible:ring-mono-500"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-mono-500" />
+                      </FormItem>
                     )}
                   />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="color"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
+                    <AlignLeftIcon className="h-5 w-5" />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
                         <FormControl>
-                          <SelectTrigger className="rounded-lg border-mono-200 dark:border-mono-700 h-9">
-                            <SelectValue placeholder="Select a color" />
-                          </SelectTrigger>
+                          <Textarea
+                            placeholder="Add a description"
+                            className="resize-none rounded-lg min-h-[100px] border-mono-200 dark:border-mono-700 focus-visible:ring-mono-400 dark:focus-visible:ring-mono-500"
+                            {...field}
+                          />
                         </FormControl>
-                        <SelectContent className="rounded-lg border-mono-200 dark:border-mono-700">
-                          <SelectItem value="#3b82f6" className="rounded-md my-1 cursor-pointer">
-                            <div className="flex items-center">
-                              <div className="mr-2 h-4 w-4 rounded-full bg-mono-900 dark:bg-mono-100" />
-                              <span>Black</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="#10b981" className="rounded-md my-1 cursor-pointer">
-                            <div className="flex items-center">
-                              <div className="mr-2 h-4 w-4 rounded-full bg-mono-700 dark:bg-mono-300" />
-                              <span>Dark Gray</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="#ef4444" className="rounded-md my-1 cursor-pointer">
-                            <div className="flex items-center">
-                              <div className="mr-2 h-4 w-4 rounded-full bg-mono-500 dark:bg-mono-500" />
-                              <span>Gray</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="#f59e0b" className="rounded-md my-1 cursor-pointer">
-                            <div className="flex items-center">
-                              <div className="mr-2 h-4 w-4 rounded-full bg-mono-300 dark:bg-mono-700" />
-                              <span>Light Gray</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="#8b5cf6" className="rounded-md my-1 cursor-pointer">
-                            <div className="flex items-center">
-                              <div className="mr-2 h-4 w-4 rounded-full bg-mono-200 dark:bg-mono-800" />
-                              <span>Subtle</span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage className="text-mono-500" />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage className="text-mono-500" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 rounded-lg flex items-center justify-center overflow-hidden">
+                    <div
+                      className={cn(
+                        "w-full h-full",
+                        form.watch("color") === "#3b82f6" && "bg-mono-900 dark:bg-mono-100",
+                        form.watch("color") === "#10b981" && "bg-mono-700 dark:bg-mono-300",
+                        form.watch("color") === "#ef4444" && "bg-mono-500 dark:bg-mono-500",
+                        form.watch("color") === "#f59e0b" && "bg-mono-300 dark:bg-mono-700",
+                        form.watch("color") === "#8b5cf6" && "bg-mono-200 dark:bg-mono-800",
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="color"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="rounded-lg border-mono-200 dark:border-mono-700 h-9">
+                              <SelectValue placeholder="Select a color" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="rounded-lg border-mono-200 dark:border-mono-700">
+                            <SelectItem value="#3b82f6" className="rounded-md my-1 cursor-pointer">
+                              <div className="flex items-center">
+                                <div className="mr-2 h-4 w-4 rounded-full bg-mono-900 dark:bg-mono-100" />
+                                <span>Black</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="#10b981" className="rounded-md my-1 cursor-pointer">
+                              <div className="flex items-center">
+                                <div className="mr-2 h-4 w-4 rounded-full bg-mono-700 dark:bg-mono-300" />
+                                <span>Dark Gray</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="#ef4444" className="rounded-md my-1 cursor-pointer">
+                              <div className="flex items-center">
+                                <div className="mr-2 h-4 w-4 rounded-full bg-mono-500 dark:bg-mono-500" />
+                                <span>Gray</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="#f59e0b" className="rounded-md my-1 cursor-pointer">
+                              <div className="flex items-center">
+                                <div className="mr-2 h-4 w-4 rounded-full bg-mono-300 dark:bg-mono-700" />
+                                <span>Light Gray</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="#8b5cf6" className="rounded-md my-1 cursor-pointer">
+                              <div className="flex items-center">
+                                <div className="mr-2 h-4 w-4 rounded-full bg-mono-200 dark:bg-mono-800" />
+                                <span>Subtle</span>
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage className="text-mono-500" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="recurrence" className="space-y-4 px-6">
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
+                    <RepeatIcon className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="isRecurring"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Recurring Event</FormLabel>
+                            <FormDescription>Set this event to repeat on a schedule</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    {isRecurring && (
+                      <div className="space-y-4 animate-fade-in">
+                        <FormField
+                          control={form.control}
+                          name="recurrenceType"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Repeat</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger className="rounded-lg border-mono-200 dark:border-mono-700">
+                                    <SelectValue placeholder="Select frequency" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="daily">Daily</SelectItem>
+                                  <SelectItem value="weekly">Weekly</SelectItem>
+                                  <SelectItem value="monthly">Monthly</SelectItem>
+                                  <SelectItem value="yearly">Yearly</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="recurrenceInterval"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Repeat every</FormLabel>
+                              <div className="flex items-center gap-2">
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={365}
+                                    {...field}
+                                    onChange={(e) => field.onChange(Number.parseInt(e.target.value) || 1)}
+                                    className="w-20 rounded-lg border-mono-200 dark:border-mono-700"
+                                  />
+                                </FormControl>
+                                <span>
+                                  {form.watch("recurrenceType") === "daily" && "day(s)"}
+                                  {form.watch("recurrenceType") === "weekly" && "week(s)"}
+                                  {form.watch("recurrenceType") === "monthly" && "month(s)"}
+                                  {form.watch("recurrenceType") === "yearly" && "year(s)"}
+                                </span>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="recurrenceEndType"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Ends</FormLabel>
+                              <FormControl>
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                  className="space-y-2"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="never" id="never" />
+                                    <label htmlFor="never" className="text-sm font-medium">
+                                      Never
+                                    </label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="after" id="after" />
+                                    <label htmlFor="after" className="text-sm font-medium">
+                                      After
+                                    </label>
+                                    {recurrenceEndType === "after" && (
+                                      <FormField
+                                        control={form.control}
+                                        name="recurrenceEndAfter"
+                                        render={({ field }) => (
+                                          <FormItem className="flex items-center gap-2 ml-2">
+                                            <FormControl>
+                                              <Input
+                                                type="number"
+                                                min={1}
+                                                max={999}
+                                                {...field}
+                                                onChange={(e) => field.onChange(Number.parseInt(e.target.value) || 1)}
+                                                className="w-16 h-8 rounded-lg border-mono-200 dark:border-mono-700"
+                                              />
+                                            </FormControl>
+                                            <span className="text-sm">occurrences</span>
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="on" id="on" />
+                                    <label htmlFor="on" className="text-sm font-medium">
+                                      On date
+                                    </label>
+                                    {recurrenceEndType === "on" && (
+                                      <FormField
+                                        control={form.control}
+                                        name="recurrenceEndOn"
+                                        render={({ field }) => (
+                                          <FormItem className="ml-2">
+                                            <FormControl>
+                                              <Input
+                                                type="date"
+                                                {...field}
+                                                className="w-40 h-8 rounded-lg border-mono-200 dark:border-mono-700"
+                                              />
+                                            </FormControl>
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
+                                  </div>
+                                </RadioGroup>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="reminders" className="space-y-4 px-6">
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
+                    <BellIcon className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-medium">Reminders</h3>
+                      <Button type="button" variant="outline" size="sm" onClick={addReminder} className="h-8 text-xs">
+                        Add Reminder
+                      </Button>
+                    </div>
+
+                    {form.watch("reminders")?.map((_, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <FormField
+                          control={form.control}
+                          name={`reminders.${index}.time`}
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={999}
+                                  {...field}
+                                  onChange={(e) => field.onChange(Number.parseInt(e.target.value) || 1)}
+                                  className="w-20 rounded-lg border-mono-200 dark:border-mono-700 h-9"
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`reminders.${index}.unit`}
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger className="rounded-lg border-mono-200 dark:border-mono-700 h-9">
+                                    <SelectValue placeholder="Select unit" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="minutes">Minutes</SelectItem>
+                                  <SelectItem value="hours">Hours</SelectItem>
+                                  <SelectItem value="days">Days</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeReminder(index)}
+                          className="h-9 w-9"
+                          disabled={form.watch("reminders")?.length <= 1}
+                        >
+                          <XIcon className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+
+                    <p className="text-xs text-mono-500">Reminders will be sent before the event starts</p>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="more" className="space-y-4 px-6">
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
+                    <TagIcon className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <FormField
+                      control={form.control}
+                      name="category"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Category</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl>
+                              <SelectTrigger className="rounded-lg border-mono-200 dark:border-mono-700">
+                                <SelectValue placeholder="Select a category" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {categories.map((category) => (
+                                <SelectItem key={category} value={category}>
+                                  {category}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="custom">Custom...</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {selectedCategory === "custom" && (
+                      <div className="mt-2">
+                        <Input
+                          placeholder="Enter custom category"
+                          value={customCategory}
+                          onChange={(e) => setCustomCategory(e.target.value)}
+                          className="rounded-lg border-mono-200 dark:border-mono-700 h-9"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <DialogFooter className="px-6 py-4 mt-4 bg-mono-50 dark:bg-mono-900">
+              <div className="flex w-full items-center justify-between">
+                {event && (
+                  <Button
+                    type="button"
+                    variant={confirmDelete ? "destructive" : "ghost"}
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className={cn(
+                      "rounded-lg text-sm",
+                      confirmDelete
+                        ? "bg-mono-500 text-mono-50 hover:bg-mono-600 dark:bg-mono-400 dark:text-mono-900"
+                        : "text-mono-500 hover:text-mono-700 hover:bg-mono-100 dark:text-mono-400 dark:hover:text-mono-200",
+                    )}
+                  >
+                    {confirmDelete ? (
+                      <>
+                        <CheckIcon className="mr-2 h-4 w-4" />
+                        Confirm
+                      </>
+                    ) : (
+                      <>
+                        <TrashIcon className="mr-2 h-4 w-4" />
+                        {isDeleting ? "Deleting..." : "Delete"}
+                      </>
+                    )}
+                  </Button>
+                )}
+                <div className="flex gap-2 ml-auto">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => onOpenChange(false)}
+                    className="rounded-lg text-sm bg-mono-100 dark:bg-mono-800 hover:bg-mono-200 dark:hover:bg-mono-700"
+                  >
+                    <XIcon className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    onClick={form.handleSubmit(onSubmit)}
+                    disabled={form.formState.isSubmitting}
+                    className="rounded-lg text-sm bg-mono-900 text-mono-50 hover:bg-mono-800 dark:bg-mono-50 dark:text-mono-900 dark:hover:bg-mono-200"
+                  >
+                    <CheckIcon className="mr-2 h-4 w-4" />
+                    {form.formState.isSubmitting ? "Saving..." : event ? "Update" : "Create"}
+                  </Button>
+                </div>
               </div>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
-
-        <DialogFooter className="px-6 py-4 mt-4 bg-mono-50 dark:bg-mono-900">
-          <div className="flex w-full items-center justify-between">
-            {event && (
-              <Button
-                type="button"
-                variant={confirmDelete ? "destructive" : "ghost"}
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className={cn(
-                  "rounded-lg text-sm",
-                  confirmDelete
-                    ? "bg-mono-500 text-mono-50 hover:bg-mono-600 dark:bg-mono-400 dark:text-mono-900"
-                    : "text-mono-500 hover:text-mono-700 hover:bg-mono-100 dark:text-mono-400 dark:hover:text-mono-200",
-                )}
-              >
-                {confirmDelete ? (
-                  <>
-                    <CheckIcon className="mr-2 h-4 w-4" />
-                    Confirm
-                  </>
-                ) : (
-                  <>
-                    <TrashIcon className="mr-2 h-4 w-4" />
-                    {isDeleting ? "Deleting..." : "Delete"}
-                  </>
-                )}
-              </Button>
-            )}
-            <div className="flex gap-2 ml-auto">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-                className="rounded-lg text-sm bg-mono-100 dark:bg-mono-800 hover:bg-mono-200 dark:hover:bg-mono-700"
-              >
-                <XIcon className="mr-2 h-4 w-4" />
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                onClick={form.handleSubmit(onSubmit)}
-                disabled={form.formState.isSubmitting}
-                className="rounded-lg text-sm bg-mono-900 text-mono-50 hover:bg-mono-800 dark:bg-mono-50 dark:text-mono-900 dark:hover:bg-mono-200"
-              >
-                <CheckIcon className="mr-2 h-4 w-4" />
-                {form.formState.isSubmitting ? "Saving..." : event ? "Update" : "Create"}
-              </Button>
-            </div>
-          </div>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
