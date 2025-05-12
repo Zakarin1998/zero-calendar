@@ -33,10 +33,13 @@ import {
   RepeatIcon,
   BellIcon,
   TagIcon,
+  GlobeIcon,
 } from "lucide-react"
 import { type CalendarEvent, createEvent, updateEvent, deleteEvent } from "@/lib/calendar"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { format, parseISO, addDays } from "date-fns"
+import { zonedTimeToUtc, utcToZonedTime } from "date-fns-tz"
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -45,14 +48,18 @@ const formSchema = z.object({
   end: z.string().min(1, "End date is required"),
   location: z.string().optional(),
   color: z.string().default("#3b82f6"),
-  timezone: z.string().optional(),
+  timezone: z.string(),
+  allDay: z.boolean().default(false),
   // Recurrence fields
   isRecurring: z.boolean().default(false),
-  recurrenceType: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
+  recurrenceFrequency: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
   recurrenceInterval: z.number().min(1).max(365).optional(),
   recurrenceEndType: z.enum(["never", "after", "on"]).optional(),
   recurrenceEndAfter: z.number().min(1).max(999).optional(),
   recurrenceEndOn: z.string().optional(),
+  recurrenceByDay: z.array(z.enum(["MO", "TU", "WE", "TH", "FR", "SA", "SU"])).optional(),
+  recurrenceByMonthDay: z.array(z.number().min(1).max(31)).optional(),
+  recurrenceByMonth: z.array(z.number().min(1).max(12)).optional(),
   // Reminder fields
   reminders: z
     .array(
@@ -89,6 +96,9 @@ export function EventDialog({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [activeTab, setActiveTab] = useState("basic")
   const [customCategory, setCustomCategory] = useState("")
+  const [availableTimezones, setAvailableTimezones] = useState<string[]>([])
+  const [isRecurringInstance, setIsRecurringInstance] = useState(false)
+  const [editOption, setEditOption] = useState<"this" | "all" | "future">("this")
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -99,12 +109,17 @@ export function EventDialog({
       end: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
       location: "",
       color: "#3b82f6",
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      allDay: false,
       isRecurring: false,
-      recurrenceType: "weekly",
+      recurrenceFrequency: "weekly",
       recurrenceInterval: 1,
       recurrenceEndType: "never",
       recurrenceEndAfter: 10,
       recurrenceEndOn: new Date(Date.now() + 30 * 24 * 3600000).toISOString().slice(0, 10),
+      recurrenceByDay: [],
+      recurrenceByMonthDay: [],
+      recurrenceByMonth: [],
       reminders: [{ time: 30, unit: "minutes" }],
       category: "",
     },
@@ -112,27 +127,54 @@ export function EventDialog({
 
   const isRecurring = form.watch("isRecurring")
   const recurrenceEndType = form.watch("recurrenceEndType")
+  const recurrenceFrequency = form.watch("recurrenceFrequency")
   const selectedCategory = form.watch("category")
+  const selectedTimezone = form.watch("timezone")
+  const isAllDay = form.watch("allDay")
+
+  useEffect(() => {
+    // Get list of available timezones
+    const timezones = Intl.supportedValuesOf("timeZone")
+    setAvailableTimezones(timezones)
+
+    // Reset delete confirmation when dialog opens/closes
+    setConfirmDelete(false)
+  }, [open])
 
   useEffect(() => {
     if (event) {
+      // Check if this is a recurring instance
+      setIsRecurringInstance(!!event.isRecurringInstance)
+
+      // Set form values from event
       form.reset({
         title: event.title,
         description: event.description || "",
-        start: new Date(event.start).toISOString().slice(0, 16),
-        end: new Date(event.end).toISOString().slice(0, 16),
+        start: formatDateTimeForInput(event.start, event.timezone, event.allDay),
+        end: formatDateTimeForInput(event.end, event.timezone, event.allDay),
         location: event.location || "",
         color: event.color || "#3b82f6",
-        isRecurring: event.recurrence ? true : false,
-        recurrenceType: event.recurrence?.type || "weekly",
+        timezone: event.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        allDay: event.allDay || false,
+        isRecurring: !!event.recurrence,
+        recurrenceFrequency: event.recurrence?.frequency || "weekly",
         recurrenceInterval: event.recurrence?.interval || 1,
-        recurrenceEndType: event.recurrence?.endType || "never",
-        recurrenceEndAfter: event.recurrence?.endAfter || 10,
-        recurrenceEndOn: event.recurrence?.endOn ? new Date(event.recurrence.endOn).toISOString().slice(0, 10) : "",
-        reminders: event.reminders || [{ time: 30, unit: "minutes" }],
+        recurrenceEndType: event.recurrence?.until ? "on" : event.recurrence?.count ? "after" : "never",
+        recurrenceEndAfter: event.recurrence?.count || 10,
+        recurrenceEndOn: event.recurrence?.until
+          ? event.recurrence.until.slice(0, 10)
+          : addDays(new Date(), 30).toISOString().slice(0, 10),
+        recurrenceByDay: event.recurrence?.byDay || [],
+        recurrenceByMonthDay: event.recurrence?.byMonthDay || [],
+        recurrenceByMonth: event.recurrence?.byMonth || [],
+        reminders: event.reminders?.map((r) => ({ time: r.minutes, unit: "minutes" as const })) || [
+          { time: 30, unit: "minutes" as const },
+        ],
         category: event.category || "",
       })
     } else {
+      // Reset form for new event
+      setIsRecurringInstance(false)
       form.reset({
         title: "",
         description: "",
@@ -140,28 +182,60 @@ export function EventDialog({
         end: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
         location: "",
         color: "#3b82f6",
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        allDay: false,
         isRecurring: false,
-        recurrenceType: "weekly",
+        recurrenceFrequency: "weekly",
         recurrenceInterval: 1,
         recurrenceEndType: "never",
         recurrenceEndAfter: 10,
-        recurrenceEndOn: new Date(Date.now() + 30 * 24 * 3600000).toISOString().slice(0, 10),
+        recurrenceEndOn: addDays(new Date(), 30).toISOString().slice(0, 10),
+        recurrenceByDay: [],
+        recurrenceByMonthDay: [],
+        recurrenceByMonth: [],
         reminders: [{ time: 30, unit: "minutes" }],
         category: "",
       })
     }
-
-    // Reset delete confirmation when dialog opens/closes
-    setConfirmDelete(false)
   }, [event, form, open])
 
-  useEffect(() => {
-    // Get the user's timezone
-    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+  // Format date for input fields, handling timezones
+  function formatDateTimeForInput(dateStr: string, timezone?: string, allDay?: boolean): string {
+    try {
+      const date = parseISO(dateStr)
 
-    // Set the timezone in the form
-    form.setValue("timezone", userTimezone)
-  }, [form])
+      if (allDay) {
+        return format(date, "yyyy-MM-dd")
+      }
+
+      if (timezone) {
+        const localDate = utcToZonedTime(date, timezone)
+        return format(localDate, "yyyy-MM-dd'T'HH:mm")
+      }
+
+      return format(date, "yyyy-MM-dd'T'HH:mm")
+    } catch (error) {
+      console.error("Error formatting date:", error)
+      return dateStr
+    }
+  }
+
+  // Convert local date to UTC with timezone consideration
+  function convertToUTC(dateStr: string, timezone: string, allDay?: boolean): string {
+    try {
+      if (allDay) {
+        // For all-day events, use the date without time
+        return `${dateStr.slice(0, 10)}T00:00:00.000Z`
+      }
+
+      const localDate = parseISO(dateStr)
+      const utcDate = zonedTimeToUtc(localDate, timezone)
+      return utcDate.toISOString()
+    } catch (error) {
+      console.error("Error converting to UTC:", error)
+      return dateStr
+    }
+  }
 
   const addReminder = () => {
     const currentReminders = form.getValues("reminders") || []
@@ -176,6 +250,42 @@ export function EventDialog({
     )
   }
 
+  const toggleDaySelection = (day: "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU") => {
+    const currentDays = form.getValues("recurrenceByDay") || []
+    if (currentDays.includes(day)) {
+      form.setValue(
+        "recurrenceByDay",
+        currentDays.filter((d) => d !== day),
+      )
+    } else {
+      form.setValue("recurrenceByDay", [...currentDays, day])
+    }
+  }
+
+  const toggleMonthDaySelection = (day: number) => {
+    const currentDays = form.getValues("recurrenceByMonthDay") || []
+    if (currentDays.includes(day)) {
+      form.setValue(
+        "recurrenceByMonthDay",
+        currentDays.filter((d) => d !== day),
+      )
+    } else {
+      form.setValue("recurrenceByMonthDay", [...currentDays, day])
+    }
+  }
+
+  const toggleMonthSelection = (month: number) => {
+    const currentMonths = form.getValues("recurrenceByMonth") || []
+    if (currentMonths.includes(month)) {
+      form.setValue(
+        "recurrenceByMonth",
+        currentMonths.filter((m) => m !== month),
+      )
+    } else {
+      form.setValue("recurrenceByMonth", [...currentMonths, month])
+    }
+  }
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!session?.user?.id) {
       toast({
@@ -187,14 +297,21 @@ export function EventDialog({
     }
 
     try {
+      // Convert dates to UTC with timezone consideration
+      const startUTC = convertToUTC(values.start, values.timezone, values.allDay)
+      const endUTC = convertToUTC(values.end, values.timezone, values.allDay)
+
       // Process recurrence data
       const recurrence = values.isRecurring
         ? {
-            type: values.recurrenceType,
+            frequency: values.recurrenceFrequency,
             interval: values.recurrenceInterval,
-            endType: values.recurrenceEndType,
-            endAfter: values.recurrenceEndType === "after" ? values.recurrenceEndAfter : undefined,
-            endOn: values.recurrenceEndType === "on" ? values.recurrenceEndOn : undefined,
+            count: values.recurrenceEndType === "after" ? values.recurrenceEndAfter : undefined,
+            until:
+              values.recurrenceEndType === "on" ? convertToUTC(values.recurrenceEndOn, values.timezone) : undefined,
+            byDay: values.recurrenceByDay?.length ? values.recurrenceByDay : undefined,
+            byMonthDay: values.recurrenceByMonthDay?.length ? values.recurrenceByMonthDay : undefined,
+            byMonth: values.recurrenceByMonth?.length ? values.recurrenceByMonth : undefined,
           }
         : undefined
 
@@ -204,22 +321,57 @@ export function EventDialog({
         finalCategory = customCategory
       }
 
+      // Process reminders
+      const reminders = values.reminders.map((reminder) => {
+        let minutes = reminder.time
+        if (reminder.unit === "hours") minutes *= 60
+        if (reminder.unit === "days") minutes *= 60 * 24
+        return { minutes, method: "popup" as const }
+      })
+
+      // Create event data object
       const eventData: CalendarEvent = {
         id: event?.id || `event_${Date.now()}`,
         title: values.title,
         description: values.description,
-        start: values.start,
-        end: values.end,
+        start: startUTC,
+        end: endUTC,
         location: values.location,
         color: values.color,
         userId: session.user.id,
-        timezone: values.timezone || "UTC",
+        timezone: values.timezone,
+        allDay: values.allDay,
         recurrence,
-        reminders: values.reminders,
+        reminders,
         category: finalCategory,
       }
 
-      if (event) {
+      // Handle recurring instance editing
+      if (isRecurringInstance && event?.originalEventId) {
+        if (editOption === "this") {
+          // Just update this instance
+          eventData.originalEventId = event.originalEventId
+          eventData.isRecurringInstance = true
+          eventData.exceptionDate = event.exceptionDate || event.start
+        } else if (editOption === "all") {
+          // Update the master recurring event
+          eventData.id = event.originalEventId
+          delete eventData.isRecurringInstance
+          delete eventData.originalEventId
+          delete eventData.exceptionDate
+        } else if (editOption === "future") {
+          // Create a new recurring series starting from this instance
+          eventData.id = `event_${Date.now()}`
+          delete eventData.isRecurringInstance
+          delete eventData.originalEventId
+          delete eventData.exceptionDate
+
+          // Also need to update the original series to end before this instance
+          // This would require additional backend logic
+        }
+      }
+
+      if (event && !isRecurringInstance) {
         const updatedEvent = await updateEvent(eventData)
         toast({
           title: "Event updated",
@@ -259,7 +411,24 @@ export function EventDialog({
 
     setIsDeleting(true)
     try {
-      await deleteEvent(session.user.id, event.id)
+      // For recurring instances, handle different delete options
+      if (isRecurringInstance && event.originalEventId) {
+        if (editOption === "this") {
+          // Delete just this instance
+          await deleteEvent(session.user.id, event.id)
+        } else if (editOption === "all") {
+          // Delete the entire series
+          await deleteEvent(session.user.id, event.originalEventId, true)
+        } else if (editOption === "future") {
+          // This would require additional backend logic
+          // For now, just delete this instance
+          await deleteEvent(session.user.id, event.id)
+        }
+      } else {
+        // Regular event deletion
+        await deleteEvent(session.user.id, event.id)
+      }
+
       toast({
         title: "Event deleted",
         description: "Your event has been deleted successfully",
@@ -290,13 +459,40 @@ export function EventDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {isRecurringInstance && (
+          <div className="bg-mono-100 dark:bg-mono-800 p-4 rounded-lg mb-4">
+            <h3 className="font-medium mb-2">Edit recurring event</h3>
+            <RadioGroup value={editOption} onValueChange={(value: "this" | "all" | "future") => setEditOption(value)}>
+              <div className="flex items-center space-x-2 py-1">
+                <RadioGroupItem value="this" id="edit-this" />
+                <label htmlFor="edit-this" className="text-sm">
+                  This event only
+                </label>
+              </div>
+              <div className="flex items-center space-x-2 py-1">
+                <RadioGroupItem value="all" id="edit-all" />
+                <label htmlFor="edit-all" className="text-sm">
+                  All events in the series
+                </label>
+              </div>
+              <div className="flex items-center space-x-2 py-1">
+                <RadioGroupItem value="future" id="edit-future" />
+                <label htmlFor="edit-future" className="text-sm">
+                  This and future events
+                </label>
+              </div>
+            </RadioGroup>
+          </div>
+        )}
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs defaultValue="basic" value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid grid-cols-4 mb-4">
+              <TabsList className="grid grid-cols-5 mb-4">
                 <TabsTrigger value="basic">Basic</TabsTrigger>
                 <TabsTrigger value="recurrence">Recurrence</TabsTrigger>
                 <TabsTrigger value="reminders">Reminders</TabsTrigger>
+                <TabsTrigger value="timezone">Timezone</TabsTrigger>
                 <TabsTrigger value="more">More</TabsTrigger>
               </TabsList>
 
@@ -318,6 +514,22 @@ export function EventDialog({
                   )}
                 />
 
+                <FormField
+                  control={form.control}
+                  name="allDay"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>All-day event</FormLabel>
+                        <FormDescription>Event will last the entire day</FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
                 <div className="flex items-start gap-3">
                   <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
                     <ClockIcon className="h-5 w-5" />
@@ -330,7 +542,7 @@ export function EventDialog({
                         <FormItem>
                           <FormControl>
                             <Input
-                              type="datetime-local"
+                              type={isAllDay ? "date" : "datetime-local"}
                               {...field}
                               className="rounded-lg border-mono-200 dark:border-mono-700 h-9 text-sm focus-visible:ring-mono-400 dark:focus-visible:ring-mono-500"
                             />
@@ -346,7 +558,7 @@ export function EventDialog({
                         <FormItem>
                           <FormControl>
                             <Input
-                              type="datetime-local"
+                              type={isAllDay ? "date" : "datetime-local"}
                               {...field}
                               className="rounded-lg border-mono-200 dark:border-mono-700 h-9 text-sm focus-visible:ring-mono-400 dark:focus-visible:ring-mono-500"
                             />
@@ -492,7 +704,7 @@ export function EventDialog({
                       <div className="space-y-4 animate-fade-in">
                         <FormField
                           control={form.control}
-                          name="recurrenceType"
+                          name="recurrenceFrequency"
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Repeat</FormLabel>
@@ -532,16 +744,109 @@ export function EventDialog({
                                   />
                                 </FormControl>
                                 <span>
-                                  {form.watch("recurrenceType") === "daily" && "day(s)"}
-                                  {form.watch("recurrenceType") === "weekly" && "week(s)"}
-                                  {form.watch("recurrenceType") === "monthly" && "month(s)"}
-                                  {form.watch("recurrenceType") === "yearly" && "year(s)"}
+                                  {recurrenceFrequency === "daily" && "day(s)"}
+                                  {recurrenceFrequency === "weekly" && "week(s)"}
+                                  {recurrenceFrequency === "monthly" && "month(s)"}
+                                  {recurrenceFrequency === "yearly" && "year(s)"}
                                 </span>
                               </div>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
+
+                        {recurrenceFrequency === "weekly" && (
+                          <div className="space-y-2">
+                            <FormLabel>Repeat on</FormLabel>
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                { day: "MO", label: "M" },
+                                { day: "TU", label: "T" },
+                                { day: "WE", label: "W" },
+                                { day: "TH", label: "T" },
+                                { day: "FR", label: "F" },
+                                { day: "SA", label: "S" },
+                                { day: "SU", label: "S" },
+                              ].map(({ day, label }) => (
+                                <Button
+                                  key={day}
+                                  type="button"
+                                  variant="outline"
+                                  className={cn(
+                                    "h-8 w-8 p-0 rounded-full",
+                                    form.watch("recurrenceByDay")?.includes(day as any)
+                                      ? "bg-mono-900 text-mono-50 dark:bg-mono-50 dark:text-mono-900"
+                                      : "bg-transparent",
+                                  )}
+                                  onClick={() => toggleDaySelection(day as any)}
+                                >
+                                  {label}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {recurrenceFrequency === "monthly" && (
+                          <div className="space-y-2">
+                            <FormLabel>Repeat on day</FormLabel>
+                            <div className="flex flex-wrap gap-2">
+                              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                                <Button
+                                  key={day}
+                                  type="button"
+                                  variant="outline"
+                                  className={cn(
+                                    "h-8 w-8 p-0 rounded-full",
+                                    form.watch("recurrenceByMonthDay")?.includes(day)
+                                      ? "bg-mono-900 text-mono-50 dark:bg-mono-50 dark:text-mono-900"
+                                      : "bg-transparent",
+                                  )}
+                                  onClick={() => toggleMonthDaySelection(day)}
+                                >
+                                  {day}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {recurrenceFrequency === "yearly" && (
+                          <div className="space-y-2">
+                            <FormLabel>Repeat in months</FormLabel>
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                { month: 1, label: "Jan" },
+                                { month: 2, label: "Feb" },
+                                { month: 3, label: "Mar" },
+                                { month: 4, label: "Apr" },
+                                { month: 5, label: "May" },
+                                { month: 6, label: "Jun" },
+                                { month: 7, label: "Jul" },
+                                { month: 8, label: "Aug" },
+                                { month: 9, label: "Sep" },
+                                { month: 10, label: "Oct" },
+                                { month: 11, label: "Nov" },
+                                { month: 12, label: "Dec" },
+                              ].map(({ month, label }) => (
+                                <Button
+                                  key={month}
+                                  type="button"
+                                  variant="outline"
+                                  className={cn(
+                                    "h-8 px-2 rounded-full",
+                                    form.watch("recurrenceByMonth")?.includes(month)
+                                      ? "bg-mono-900 text-mono-50 dark:bg-mono-50 dark:text-mono-900"
+                                      : "bg-transparent",
+                                  )}
+                                  onClick={() => toggleMonthSelection(month)}
+                                >
+                                  {label}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         <FormField
                           control={form.control}
@@ -692,6 +997,46 @@ export function EventDialog({
                     ))}
 
                     <p className="text-xs text-mono-500">Reminders will be sent before the event starts</p>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="timezone" className="space-y-4 px-6">
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-mono-100 dark:bg-mono-800 text-mono-500">
+                    <GlobeIcon className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <FormField
+                      control={form.control}
+                      name="timezone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Timezone</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="rounded-lg border-mono-200 dark:border-mono-700">
+                                <SelectValue placeholder="Select timezone" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="max-h-[300px]">
+                              {availableTimezones.map((tz) => (
+                                <SelectItem key={tz} value={tz}>
+                                  {tz.replace(/_/g, " ")}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>Event times will be displayed in this timezone</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="mt-4 p-3 bg-mono-100 dark:bg-mono-800 rounded-lg">
+                      <h4 className="text-sm font-medium mb-2">Current time in {selectedTimezone}:</h4>
+                      <p className="text-sm">{new Date().toLocaleString("en-US", { timeZone: selectedTimezone })}</p>
+                    </div>
                   </div>
                 </div>
               </TabsContent>
